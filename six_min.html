@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6 分鐘倒計時器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;700&family=JetBrains+Mono:wght@700&display=swap');
+        
+        body {
+            background: radial-gradient(circle at center, #1e1b4b, #0f172a);
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .timer-display {
+            font-family: 'JetBrains+Mono', monospace;
+            font-size: clamp(5rem, 15vw, 9rem);
+            letter-spacing: -4px;
+            background: linear-gradient(to bottom, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.3));
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 2.5rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);
+            width: 100%;
+            transition: width 1s linear;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+        }
+
+        .urgent {
+            background: linear-gradient(to bottom, #ff4d4d, #f43f5e) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; filter: drop-shadow(0 0 30px rgba(244, 63, 94, 0.6)); }
+            50% { opacity: 0.8; filter: drop-shadow(0 0 10px rgba(244, 63, 94, 0.2)); }
+        }
+
+        .finished {
+            animation: alarm-flash 0.6s infinite;
+        }
+
+        @keyframes alarm-flash {
+            0% { background-color: #0f172a; }
+            50% { background-color: #450a0a; }
+            100% { background-color: #0f172a; }
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .btn {
+            @apply px-10 py-3 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-2;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px -5px rgba(79, 70, 229, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass-card text-center p-12 max-w-xl w-full mx-4">
+        <h1 id="status-text" class="text-sm font-bold mb-6 text-indigo-400 tracking-[0.3em] uppercase">Ready to start</h1>
+        
+        <div id="display" class="timer-display leading-none">06:00</div>
+        
+        <div class="progress-container">
+            <div id="progress" class="progress-bar"></div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-4 justify-center">
+            <button id="startBtn" class="btn btn-primary text-white w-full sm:w-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                開始倒數
+            </button>
+            
+            <div id="controls" class="hidden flex gap-4 w-full sm:w-auto">
+                <button id="toggleBtn" class="btn bg-slate-700 hover:bg-slate-600 text-white flex-1">
+                    暫停
+                </button>
+                <button id="resetBtn" class="btn bg-transparent border border-slate-600 hover:bg-slate-800 text-slate-300 flex-1">
+                    重設
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let timeLeft = 6 * 60; 
+        const totalTime = 6 * 60;
+        let timerId = null;
+        let isRunning = false;
+
+        const display = document.getElementById('display');
+        const progressBar = document.getElementById('progress');
+        const startBtn = document.getElementById('startBtn');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const controls = document.getElementById('controls');
+        const statusText = document.getElementById('status-text');
+        const body = document.body;
+
+        function updateDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            
+            display.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            const percentage = (timeLeft / totalTime) * 100;
+            progressBar.style.width = `${percentage}%`;
+
+            if (timeLeft <= 30 && timeLeft > 0) {
+                display.classList.add('urgent');
+                statusText.textContent = '最後衝刺';
+            } else {
+                display.classList.remove('urgent');
+            }
+
+            if (timeLeft === 0) {
+                statusText.textContent = '時間結束';
+                statusText.classList.add('text-red-500');
+                body.classList.add('finished');
+                controls.classList.add('hidden');
+                resetBtn.classList.remove('hidden');
+                // 顯示重設按鈕在結束畫面
+                startBtn.classList.add('hidden');
+                controls.classList.replace('hidden', 'flex');
+                toggleBtn.classList.add('hidden');
+            }
+        }
+
+        function startTimer() {
+            if (timerId) clearInterval(timerId);
+            isRunning = true;
+            statusText.textContent = '倒計時中';
+            timerId = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateDisplay();
+                } else {
+                    clearInterval(timerId);
+                }
+            }, 1000);
+        }
+
+        startBtn.addEventListener('click', () => {
+            startBtn.classList.add('hidden');
+            controls.classList.replace('hidden', 'flex');
+            startTimer();
+        });
+
+        toggleBtn.addEventListener('click', () => {
+            if (isRunning) {
+                clearInterval(timerId);
+                toggleBtn.textContent = '繼續';
+                toggleBtn.classList.replace('bg-slate-700', 'bg-indigo-600');
+                statusText.textContent = '已暫停';
+            } else {
+                startTimer();
+                toggleBtn.textContent = '暫停';
+                toggleBtn.classList.replace('bg-indigo-600', 'bg-slate-700');
+            }
+            isRunning = !isRunning;
+        });
+
+        resetBtn.addEventListener('click', () => {
+            clearInterval(timerId);
+            timeLeft = totalTime;
+            isRunning = false;
+            
+            // UI 重置
+            startBtn.classList.remove('hidden');
+            controls.classList.replace('flex', 'hidden');
+            toggleBtn.classList.remove('hidden');
+            toggleBtn.textContent = '暫停';
+            toggleBtn.classList.replace('bg-indigo-600', 'bg-slate-700');
+            
+            statusText.textContent = 'Ready to start';
+            statusText.classList.remove('text-red-500');
+            body.classList.remove('finished');
+            
+            updateDisplay();
+        });
+
+        // 初始化顯示
+        updateDisplay();
+    </script>
+</body>
+</html>
