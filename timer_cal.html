@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>馬錶 - 視覺強化版</title>
+    <!-- 引用 TikTok Sans 字體 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=TikTok+Sans:opsz,wght@12..36,300..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #FFFFFF;
+            --panel-color: #E0E5EC;
+            /* 指定品牌色：RGB (115, 252, 251) */
+            --brand-color: rgb(115, 252, 251);
+            /* 指定圓形背景色：RGB (44, 53, 58) */
+            --timer-bg: rgb(44, 53, 58);
+            --white-text: #FFFFFF;
+            /* 開始按鈕顏色：RGB (54, 146, 127) */
+            --green-btn: rgb(54, 146, 127);
+            /* 重置按鈕顏色：RGB (230, 101, 78) */
+            --orange-btn: rgb(230, 101, 78);
+            --shadow-dark: #bebebe;
+            --shadow-light: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'TikTok Sans', sans-serif;
+        }
+
+        /* 主面板 */
+        .container {
+            width: 320px;
+            padding: 40px 20px;
+            background: var(--panel-color);
+            border-radius: 40px;
+            box-shadow: 20px 20px 60px var(--shadow-dark),
+                        -20px -20px 60px var(--shadow-light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        /* 圓形計時器區域 */
+        .timer-container {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 底盤 - 更新背景顏色為 RGB (44, 53, 58) */
+        .timer-circle-bg {
+            position: absolute;
+            width: 210px;
+            height: 210px;
+            background: var(--timer-bg);
+            border-radius: 50%;
+            /* 微調內部陰影以配合新背景色 */
+            box-shadow: inset 6px 6px 12px rgba(0, 0, 0, 0.4),
+                        inset -6px -6px 12px rgba(255, 255, 255, 0.05);
+            border: 8px solid var(--panel-color);
+        }
+
+        /* SVG 圓環 */
+        svg {
+            position: absolute;
+            transform: rotate(-90deg);
+            width: 240px;
+            height: 240px;
+        }
+
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.1s linear;
+            stroke-linecap: round;
+        }
+
+        /* 數字顯示 */
+        #display {
+            color: var(--brand-color);
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 0;
+            text-shadow: none;
+            z-index: 1;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 1px;
+        }
+
+        /* 按鈕容器 */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            width: 80%;
+            gap: 15px;
+        }
+
+        /* 按鈕樣式 */
+        button {
+            padding: 12px;
+            font-family: 'TikTok Sans', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: white;
+            border: 2px solid #000000;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: none;
+        }
+
+        button:active {
+            transform: scale(0.95);
+            opacity: 0.9;
+        }
+
+        #startPauseBtn {
+            background-color: var(--green-btn);
+        }
+
+        #resetBtn {
+            background-color: var(--orange-btn);
+        }
+
+        #resetBtn:disabled {
+            background-color: #ccc;
+            border-color: #999;
+            cursor: not-allowed;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="timer-container">
+            <!-- 底盤 -->
+            <div class="timer-circle-bg"></div>
+            
+            <!-- 動態進度圓環 -->
+            <svg width="240" height="240">
+                <circle
+                    class="progress-ring-circle"
+                    stroke="rgb(115, 252, 251)"
+                    stroke-width="8"
+                    stroke-dasharray="691.15"
+                    stroke-dashoffset="691.15"
+                    fill="transparent"
+                    r="110"
+                    cx="120"
+                    cy="120"
+                    id="progress-ring"
+                    style="filter: drop-shadow(0 0 8px rgb(115, 252, 251, 0.6));"
+                />
+            </svg>
+
+            <!-- 時間顯示 -->
+            <h1 id="display">00:00:00</h1>
+        </div>
+
+        <div class="controls">
+            <button id="startPauseBtn">開始</button>
+            <button id="resetBtn" disabled>重置</button>
+        </div>
+    </div>
+
+    <script>
+        let startTime = 0;
+        let elapsedTime = 0;
+        let timerInterval = null;
+        let state = 'IDLE';
+
+        const display = document.getElementById('display');
+        const startPauseBtn = document.getElementById('startPauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const progressRing = document.getElementById('progress-ring');
+        
+        const circumference = 2 * Math.PI * 110;
+
+        function setProgress(percent) {
+            const offset = circumference - (percent / 100) * circumference;
+            progressRing.style.strokeDashoffset = offset;
+        }
+
+        function timeToString(time) {
+            let diffInHrs = time / 3600000;
+            let hh = Math.floor(diffInHrs);
+            let diffInMin = (diffInHrs - hh) * 60;
+            let mm = Math.floor(diffInMin);
+            let diffInSec = (diffInMin - mm) * 60;
+            let ss = Math.floor(diffInSec);
+
+            let ms = (diffInSec - ss); 
+            let totalSecPercent = ((ss + ms) % 60) / 60 * 100;
+            setProgress(totalSecPercent);
+
+            let formattedHH = hh.toString().padStart(2, "0");
+            let formattedMM = mm.toString().padStart(2, "0");
+            let formattedSS = ss.toString().padStart(2, "0");
+
+            return `${formattedHH}:${formattedMM}:${formattedSS}`;
+        }
+
+        function print(txt) {
+            display.innerHTML = txt;
+        }
+
+        function start() {
+            startTime = Date.now() - elapsedTime;
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(function() {
+                elapsedTime = Date.now() - startTime;
+                print(timeToString(elapsedTime));
+            }, 50);
+            state = 'RUNNING';
+            updateUI();
+        }
+
+        function pause() {
+            clearInterval(timerInterval);
+            state = 'PAUSED';
+            updateUI();
+        }
+
+        function reset() {
+            clearInterval(timerInterval);
+            elapsedTime = 0;
+            print("00:00:00");
+            setProgress(0);
+            state = 'IDLE';
+            updateUI();
+        }
+
+        function updateUI() {
+            switch (state) {
+                case 'IDLE':
+                    startPauseBtn.innerText = "開始";
+                    startPauseBtn.style.backgroundColor = "var(--green-btn)";
+                    resetBtn.disabled = true;
+                    break;
+                case 'RUNNING':
+                    startPauseBtn.innerText = "暫停";
+                    startPauseBtn.style.backgroundColor = "#e74c3c";
+                    resetBtn.disabled = false;
+                    break;
+                case 'PAUSED':
+                    startPauseBtn.innerText = "繼續";
+                    startPauseBtn.style.backgroundColor = "var(--green-btn)";
+                    resetBtn.disabled = false;
+                    break;
+            }
+        }
+
+        startPauseBtn.addEventListener('click', function() {
+            if (state === 'IDLE' || state === 'PAUSED') {
+                start();
+            } else if (state === 'RUNNING') {
+                pause();
+            }
+        });
+
+        resetBtn.addEventListener('click', function() {
+            reset();
+        });
+    </script>
+</body>
+</html>
