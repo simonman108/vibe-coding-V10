@@ -1,0 +1,976 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人升学简历 | Academic Resume</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- 统一的 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2c3e50',
+                        secondary: '#3498db',
+                        accent: '#e67e22',
+                        dark: '#1a202c',
+                        light: '#f8fafc'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        serif: ['Georgia', 'serif']
+                    },
+                    boxShadow: {
+                        'custom': '0 4px 20px rgba(0, 0, 0, 0.08)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow {
+                text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+            }
+            .timeline-dot {
+                @apply absolute left-0 w-4 h-4 bg-secondary rounded-full border-4 border-white -ml-2;
+            }
+            .timeline-line {
+                @apply absolute left-0 w-0.5 bg-gray-200 h-full -ml-px;
+            }
+            .section-fade {
+                opacity: 0;
+                transform: translateY(20px);
+                transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+            }
+            .section-fade.active {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            .skill-bar {
+                @apply h-2 rounded-full bg-gray-200 overflow-hidden;
+            }
+            .skill-progress {
+                @apply h-full rounded-full bg-secondary transition-all duration-1000 ease-out;
+            }
+            .pdf-only {
+                @apply hidden;
+            }
+            @media print {
+                .no-print {
+                    display: none !important;
+                }
+                .pdf-only {
+                    display: block !important;
+                }
+                body {
+                    font-size: 12pt;
+                    line-height: 1.4;
+                }
+                section {
+                    page-break-inside: avoid;
+                }
+                .container {
+                    max-width: 100%;
+                }
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+    <!-- 导航栏 -->
+    <nav id="navbar" class="fixed top-0 left-0 w-full bg-white bg-opacity-95 shadow-sm z-50 transition-all duration-300">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="text-xl font-bold text-primary">
+                <span class="hidden md:inline">个人升学简历 | </span>
+                <span class="text-secondary">Academic Resume</span>
+            </div>
+            <div class="hidden md:flex space-x-6">
+                <a href="https://cli.im/" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-secondary transition-colors">關於我</a>
+                <a href="#education" class="text-gray-600 hover:text-secondary transition-colors">教育背景</a>
+                <a href="#skills" class="text-gray-600 hover:text-secondary transition-colors">技能專長</a>
+                <a href="#projects" class="text-gray-600 hover:text-secondary transition-colors">專案經歷</a>
+                <a href="#statement" class="text-gray-600 hover:text-secondary transition-colors">個人陳述</a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="printBtn" class="hidden md:flex items-center px-4 py-2 bg-secondary text-white rounded-md hover:bg-blue-600 transition-colors">
+                    <i class="fa fa-download mr-2"></i> 匯出PDF
+                </button>
+                <button id="langToggle" class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors">
+                    <span class="lang-zh">EN</span>
+                    <span class="lang-en hidden">中文</span>
+                </button>
+                <button id="mobileMenuBtn" class="md:hidden text-gray-600 hover:text-secondary">
+                    <i class="fa fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+        <!-- 移动端菜单 -->
+        <div id="mobileMenu" class="md:hidden bg-white shadow-md hidden">
+            <div class="container mx-auto px-4 py-2 flex flex-col space-y-3">
+                <a href="#about" class="text-gray-600 hover:text-secondary py-2 transition-colors">關於我</a>
+                <a href="#education" class="text-gray-600 hover:text-secondary py-2 transition-colors">教育背景</a>
+                <a href="#skills" class="text-gray-600 hover:text-secondary py-2 transition-colors">技能專長</a>
+                <a href="#projects" class="text-gray-600 hover:text-secondary py-2 transition-colors">專案經歷</a>
+                <a href="#statement" class="text-gray-600 hover:text-secondary py-2 transition-colors">個人陳述</a>
+                <button class="flex items-center px-4 py-2 bg-secondary text-white rounded-md hover:bg-blue-600 transition-colors w-full justify-center">
+                    <i class="fa fa-download mr-2"></i> 匯出PDF
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="container mx-auto px-4 pt-24 pb-16">
+        <!-- 个人信息部分 -->
+        <section id="about" class="mb-16 section-fade">
+            <div class="bg-white rounded-xl shadow-custom overflow-hidden">
+                <div class="md:flex">
+                    <div class="md:w-1/3 bg-primary text-white p-8 flex flex-col justify-center items-center">
+                        <div class="w-40 h-40 rounded-full overflow-hidden border-4 border-white mb-6">
+                            <img src="https://p11-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/code_assistant/b3ed3d9954004134ad89934d7cc701ee~tplv-a9rns2rl98-image.image?lk3s=8e244e95&amp;rcl=2026041923005546552A27992D32F6EA8B&amp;rrcfp=e75484ac&amp;x-expires=1777215655&amp;x-signature=fzaNDQ%2Fdq4%2Bhzl5GdDH7SUcmPik%3D" alt="个人照片" class="w-full h-full object-cover">
+                        </div>
+                        <h1 class="text-3xl font-bold mb-2">张明</h1>
+                        <p class="text-blue-200 mb-6">電腦科學專業申請者</p>
+                        <div class="w-full">
+                            <div class="flex items-center mb-4">
+                                <i class="fa fa-envelope-o w-6 text-blue-200"></i>
+                                <span>zhangming@example.com</span>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <i class="fa fa-phone w-6 text-blue-200"></i>
+                                <span>+86 138 1234 5678</span>
+                            </div>
+                            <div class="flex items-center mb-4">
+                                <i class="fa fa-map-marker w-6 text-blue-200"></i>
+                                <span>北京市海淀區</span>
+                                <a href="https://yiyan.baidu.com/" class="text-blue-200 hover:underline">文心一言3</a>                             
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fa fa-globe w-6 text-blue-200"></i>
+                                <a href="https://yiyan.baidu.com/" target="_blank" rel="noopener noreferrer" class="text-blue-200 hover:underline">文心一言2</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="md:w-2/3 p-8">
+                        <h2 class="text-2xl font-bold mb-6 text-primary border-b pb-2">
+                            <i class="fa fa-user-circle mr-2"></i>
+                            <span class="lang-zh">個人簡介</span>
+                            <span class="lang-en hidden">About Me</span>
+                        </h2>
+                        <p class="text-gray-700 mb-6 leading-relaxed">
+                            <span class="lang-zh">
+                                我是一名電腦科學專業的應屆畢業生，對人工智慧和資料科學領域充滿熱情。在校期間，我保持著優異的學術成績，積極參與各類科研專案和學術競賽，獲得了多項榮譽和獎勵。我具備紮實的程式設計基礎和良好的團隊協作能力，希望能夠在研究生階段深入研究機器學習演算法及其在實際問題中的應用。
+                            </span>
+                            <span class="lang-en hidden">
+                                I am a recent graduate in Computer Science with a strong passion for Artificial Intelligence and Data Science. During my undergraduate studies, I maintained excellent academic performance, actively participated in various research projects and academic competitions, and received multiple honors and awards. I possess a solid programming foundation and good teamwork skills, hoping to pursue in-depth research on machine learning algorithms and their applications in real-world problems during my graduate studies.
+                            </span>
+                        </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h3 class="text-lg font-semibold mb-4 text-primary">
+                                    <i class="fa fa-star mr-2"></i>
+                                    <span class="lang-zh">核心優勢</span>
+                                    <span class="lang-en hidden">Core Strengths</span>
+                                </h3>
+                                <ul class="space-y-2">
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">紮實的數學基礎和演算法知識</span>
+                                        <span class="lang-en hidden">Solid foundation in mathematics and algorithms</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">豐富的專案實踐經驗</span>
+                                        <span class="lang-en hidden">Rich project practical experience</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">良好的問題解決能力和創新思維</span>
+                                        <span class="lang-en hidden">Excellent problem-solving skills and innovative thinking</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-check-circle text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">優秀的英語聽說讀寫能力</span>
+                                        <span class="lang-en hidden">Excellent English language skills</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold mb-4 text-primary">
+                                    <i class="fa fa-graduation-cap mr-2"></i>
+                                    <span class="lang-zh">研究興趣</span>
+                                    <span class="lang-en hidden">Research Interests</span>
+                                </h3>
+                                <ul class="space-y-2">
+                                    <li class="flex items-start">
+                                        <i class="fa fa-arrow-right text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">機器學習與深度學習</span>
+                                        <span class="lang-en hidden">Machine Learning &amp; Deep Learning</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-arrow-right text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">電腦視覺與影像處理</span>
+                                        <span class="lang-en hidden">Computer Vision &amp; Image Processing</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-arrow-right text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">自然語言處理</span>
+                                        <span class="lang-en hidden">Natural Language Processing</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-arrow-right text-secondary mt-1 mr-2"></i>
+                                        <span class="lang-zh">資料挖掘與知識發現</span>
+                                        <span class="lang-en hidden">Data Mining &amp; Knowledge Discovery</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 教育背景部分 -->
+        <section id="education" class="mb-16 section-fade">
+            <h2 class="text-2xl font-bold mb-6 text-primary flex items-center">
+                <i class="fa fa-graduation-cap mr-3"></i>
+                <span class="lang-zh">教育背景</span>
+                <span class="lang-en hidden">Education</span>
+            </h2>
+            <div class="bg-white rounded-xl shadow-custom p-8">
+                <div class="relative pl-8">
+                    <!-- 时间轴线 -->
+                    <div class="timeline-line"></div>
+                    
+                    <!-- 教育经历1 -->
+                    <div class="mb-10 relative">
+                        <div class="timeline-dot"></div>
+                        <div class="ml-6">
+                            <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-2">
+                                <h3 class="text-xl font-semibold text-primary">
+                                    <span class="lang-zh">北京大學</span>
+                                    <span class="lang-en hidden">Peking University</span>
+                                </h3>
+                                <span class="text-gray-500">2020年9月 - 2024年6月</span>
+                            </div>
+                            <p class="text-lg text-secondary font-medium mb-2">
+                                <span class="lang-zh">電腦科學與技術 | 學士學位</span>
+                                <span class="lang-en hidden">Computer Science and Technology | Bachelor's Degree</span>
+                            </p>
+                            <p class="text-gray-700 mb-4">
+                                <span class="lang-zh">主修課程：資料結構與演算法、電腦組成原理、操作系統、電腦網路、人工智慧導論、機器學習、資料庫系統、軟體工程</span>
+                                <span class="lang-en hidden">Major Courses: Data Structures and Algorithms, Computer Organization, Operating Systems, Computer Networks, Introduction to AI, Machine Learning, Database Systems, Software Engineering</span>
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">GPA: 3.85/4.0</span>
+                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                                    <span class="lang-zh">專業排名: 5/120</span>
+                                    <span class="lang-en hidden">Major Rank: 5/120</span>
+                                </span>
+                                <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
+                                    <span class="lang-zh">優秀畢業生</span>
+                                    <span class="lang-en hidden">Outstanding Graduate</span>
+                                </span>
+                                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                                    <span class="lang-zh">國家獎學金</span>
+                                    <span class="lang-en hidden">National Scholarship</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 教育经历2 -->
+                    <div class="relative">
+                        <div class="timeline-dot"></div>
+                        <div class="ml-6">
+                            <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-2">
+                                <h3 class="text-xl font-semibold text-primary">
+                                    <span class="lang-zh">清華大學</span>
+                                    <span class="lang-en hidden">Tsinghua University</span>
+                                </h3>
+                                <span class="text-gray-500">2023年7月 - 2023年8月</span>
+                            </div>
+                            <p class="text-lg text-secondary font-medium mb-2">
+                                <span class="lang-zh">人工智慧暑期學校</span>
+                                <span class="lang-en hidden">AI Summer School</span>
+                            </p>
+                            <p class="text-gray-700 mb-4">
+                                <span class="lang-zh">参与了由清華大學计算机系举办的人工智慧暑期學校，学习了深度学习前沿技术和研究方法，完成了基于卷积神经网络的图像分类项目。</span>
+                                <span class="lang-en hidden">Participated in the AI Summer School organized by the Computer Science Department of Tsinghua University, learned cutting-edge deep learning technologies and research methods, and completed an image classification project based on convolutional neural networks.</span>
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+                                    <span class="lang-zh">優秀學員</span>
+                                    <span class="lang-en hidden">Excellent Student</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 技能專長部分 -->
+        <section id="skills" class="mb-16 section-fade">
+            <h2 class="text-2xl font-bold mb-6 text-primary flex items-center">
+                <i class="fa fa-code mr-3"></i>
+                <span class="lang-zh">技能專長</span>
+                <span class="lang-en hidden">Skills &amp; Expertise</span>
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- 技術技能 -->
+                <div class="bg-white rounded-xl shadow-custom p-8">
+                    <h3 class="text-xl font-semibold mb-6 text-primary flex items-center">
+                        <i class="fa fa-laptop mr-2"></i>
+                        <span class="lang-zh">技術技能</span>
+                        <span class="lang-en hidden">Technical Skills</span>
+                    </h3>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium">Python</span>
+                                <span>95%</span>
+                            </div>
+                            <div class="skill-bar">
+                                <div class="skill-progress" style="width: 0%;" data-width="95%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium">Java</span>
+                                <span>85%</span>
+                            </div>
+                            <div class="skill-bar">
+                                <div class="skill-progress" style="width: 0%;" data-width="85%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium">C++</span>
+                                <span>80%</span>
+                            </div>
+                            <div class="skill-bar">
+                                <div class="skill-progress" style="width: 0%;" data-width="80%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium">HTML/CSS/JavaScript</span>
+                                <span>75%</span>
+                            </div>
+                            <div class="skill-bar">
+                                <div class="skill-progress" style="width: 0%;" data-width="75%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium">SQL</span>
+                                <span>80%</span>
+                            </div>
+                            <div class="skill-bar">
+                                <div class="skill-progress" style="width: 0%;" data-width="80%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 專業技能 -->
+                <div class="bg-white rounded-xl shadow-custom p-8">
+                    <h3 class="text-xl font-semibold mb-6 text-primary flex items-center">
+                        <i class="fa fa-cogs mr-2"></i>
+                        <span class="lang-zh">專業技能</span>
+                        <span class="lang-en hidden">Professional Skills</span>
+                    </h3>
+                    
+                    <div class="mb-6">
+                        <canvas id="skillsRadarChart" width="400" height="300"></canvas>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mt-4">
+                        <div class="flex items-center">
+                            <i class="fa fa-check-circle text-secondary mr-2"></i>
+                            <span>機器學習框架</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fa fa-check-circle text-secondary mr-2"></i>
+                            <span>数据可视化</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fa fa-check-circle text-secondary mr-2"></i>
+                            <span>演算法設計与分析</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fa fa-check-circle text-secondary mr-2"></i>
+                            <span>系统架构设计</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fa fa-check-circle text-secondary mr-2"></i>
+                            <span>数据库设计</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fa fa-check-circle text-secondary mr-2"></i>
+                            <span>版本控制 (Git)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 語言能力 -->
+                <div class="bg-white rounded-xl shadow-custom p-8">
+                    <h3 class="text-xl font-semibold mb-6 text-primary flex items-center">
+                        <i class="fa fa-language mr-2"></i>
+                        <span class="lang-zh">語言能力</span>
+                        <span class="lang-en hidden">Language Skills</span>
+                    </h3>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium">
+                                    <span class="lang-zh">英語</span>
+                                    <span class="lang-en hidden">English</span>
+                                </span>
+                                <span>CET-6: 650分</span>
+                            </div>
+                            <div class="skill-bar">
+                                <div class="skill-progress" style="width: 0%;" data-width="90%"></div>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">
+                                <span class="lang-zh">能夠流利地進行學術交流和撰寫研究論文</span>
+                                <span class="lang-en hidden">Able to communicate fluently in academic settings and write research papers</span>
+                            </p>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium">
+                                    <span class="lang-zh">日語</span>
+                                    <span class="lang-en hidden">Japanese</span>
+                                </span>
+                                <span>N2水平</span>
+                            </div>
+                            <div class="skill-bar">
+                                <div class="skill-progress" style="width: 0%;" data-width="60%"></div>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">
+                                <span class="lang-zh">具備基礎的聽說讀寫能力</span>
+                                <span class="lang-en hidden">Basic listening, speaking, reading and writing skills</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 證書與獎項 -->
+                <div class="bg-white rounded-xl shadow-custom p-8">
+                    <h3 class="text-xl font-semibold mb-6 text-primary flex items-center">
+                        <i class="fa fa-trophy mr-2"></i>
+                        <span class="lang-zh">證書與獎項</span>
+                        <span class="lang-en hidden">Certificates &amp; Awards</span>
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-start">
+                            <div class="bg-secondary text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-1">
+                                <i class="fa fa-certificate"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="font-medium">電腦技術與軟體專業技術資格（高級）</h4>
+                                <p class="text-sm text-gray-600">2023年12月</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="bg-secondary text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-1">
+                                <i class="fa fa-trophy"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="font-medium">
+                                    <span class="lang-zh">全國大學生數學建模競賽一等獎</span>
+                                    <span class="lang-en hidden">First Prize in National Undergraduate Mathematical Modeling Competition</span>
+                                </h4>
+                                <p class="text-sm text-gray-600">2022年9月</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="bg-secondary text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-1">
+                                <i class="fa fa-trophy"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="font-medium">
+                                    <span class="lang-zh">ACM-ICPC國際大學生程式設計競賽亞洲區域賽銀獎</span>
+                                    <span class="lang-en hidden">Silver Medal in ACM-ICPC Asia Regional Contest</span>
+                                </h4>
+                                <p class="text-sm text-gray-600">2021年11月</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start">
+                            <div class="bg-secondary text-white rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-1">
+                                <i class="fa fa-certificate"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="font-medium">Oracle Certified Professional, Java SE 11 Developer</h4>
+                                <p class="text-sm text-gray-600">2021年8月</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 專案經歷部分 -->
+        <section id="projects" class="mb-16 section-fade">
+            <h2 class="text-2xl font-bold mb-6 text-primary flex items-center">
+                <i class="fa fa-folder-open mr-3"></i>
+                <span class="lang-zh">專案經歷</span>
+                <span class="lang-en hidden">Project Experience</span>
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- 项目1 -->
+                <div class="bg-white rounded-xl shadow-custom overflow-hidden">
+                    <div class="h-48 bg-gray-200 relative">
+                        <img src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=500&amp;q=80" alt="智慧醫療影像分析系統" class="w-full h-full object-cover">
+                        <div class="absolute top-4 right-4 bg-secondary text-white text-xs font-bold px-2 py-1 rounded">
+                            2023.03 - 2023.06
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-2 text-primary">
+                            <span class="lang-zh">智慧醫療影像分析系統</span>
+                            <span class="lang-en hidden">Intelligent Medical Image Analysis System</span>
+                        </h3>
+                        <p class="text-gray-600 mb-4">
+                            <span class="lang-zh">基於深度學習的醫療影像分析系統，用於輔助醫生進行疾病診斷。</span>
+                            <span class="lang-en hidden">A deep learning-based medical image analysis system to assist doctors in disease diagnosis.</span>
+                        </p>
+                        <div class="mb-4">
+                            <h4 class="font-medium text-gray-700 mb-2">
+                                <span class="lang-zh">主要職責：</span>
+                                <span class="lang-en hidden">Main Responsibilities:</span>
+                            </h4>
+                            <ul class="list-disc list-inside text-gray-600 space-y-1">
+                                <li>
+                                    <span class="lang-zh">設計並實現基於ResNet的影像分類模型</span>
+                                    <span class="lang-en hidden">Designed and implemented image classification model based on ResNet</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">優化模型性能，將準確率從85%提升至92%</span>
+                                    <span class="lang-en hidden">Optimized model performance, improving accuracy from 85% to 92%</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">開發系統前端介面，實現影像上傳和結果可視化功能</span>
+                                    <span class="lang-en hidden">Developed system front-end interface, implementing image upload and result visualization</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Python</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">PyTorch</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Flask</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">HTML/CSS/JS</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 项目2 -->
+                <div class="bg-white rounded-xl shadow-custom overflow-hidden">
+                    <div class="h-48 bg-gray-200 relative">
+                        <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=500&amp;q=80" alt="城市交通流量預測系統" class="w-full h-full object-cover">
+                        <div class="absolute top-4 right-4 bg-secondary text-white text-xs font-bold px-2 py-1 rounded">
+                            2022.09 - 2023.01
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-2 text-primary">
+                            <span class="lang-zh">城市交通流量預測系統</span>
+                            <span class="lang-en hidden">Urban Traffic Flow Prediction System</span>
+                        </h3>
+                        <p class="text-gray-600 mb-4">
+                            <span class="lang-zh">基于时空数据的城市交通流量預測系統，用于智能交通管理。</span>
+                            <span class="lang-en hidden">A urban traffic flow prediction system based on spatiotemporal data for intelligent traffic management.</span>
+                        </p>
+                        <div class="mb-4">
+                            <h4 class="font-medium text-gray-700 mb-2">
+                                <span class="lang-zh">主要職責：</span>
+                                <span class="lang-en hidden">Main Responsibilities:</span>
+                            </h4>
+                            <ul class="list-disc list-inside text-gray-600 space-y-1">
+                                <li>
+                                    <span class="lang-zh">收集和處理城市交通流量資料，構建時空特徵</span>
+                                    <span class="lang-en hidden">Collected and processed urban traffic flow data, constructed spatiotemporal features</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">實現基於LSTM和注意力機制的預測模型</span>
+                                    <span class="lang-en hidden">Implemented prediction model based on LSTM and attention mechanism</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">開發交互式可視化介面，展示預測結果和分析報告</span>
+                                    <span class="lang-en hidden">Developed interactive visualization interface to display prediction results and analysis reports</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Python</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">TensorFlow</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Pandas</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Plotly</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 项目3 -->
+                <div class="bg-white rounded-xl shadow-custom overflow-hidden">
+                    <div class="h-48 bg-gray-200 relative">
+                        <img src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=500&amp;q=80" alt="多語言情感分析平台" class="w-full h-full object-cover">
+                        <div class="absolute top-4 right-4 bg-secondary text-white text-xs font-bold px-2 py-1 rounded">
+                            2021.10 - 2022.02
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-2 text-primary">
+                            <span class="lang-zh">多語言情感分析平台</span>
+                            <span class="lang-en hidden">Multilingual Sentiment Analysis Platform</span>
+                        </h3>
+                        <p class="text-gray-600 mb-4">
+                            <span class="lang-zh">支援中英文的社交媒體文本情感分析平台，用於品牌聲譽監測。</span>
+                            <span class="lang-en hidden">A sentiment analysis platform for social media texts supporting Chinese and English, used for brand reputation monitoring.</span>
+                        </p>
+                        <div class="mb-4">
+                            <h4 class="font-medium text-gray-700 mb-2">
+                                <span class="lang-zh">主要職責：</span>
+                                <span class="lang-en hidden">Main Responsibilities:</span>
+                            </h4>
+                            <ul class="list-disc list-inside text-gray-600 space-y-1">
+                                <li>
+                                    <span class="lang-zh">設計並實現基於BERT的多語言情感分類模型</span>
+                                    <span class="lang-en hidden">Designed and implemented multilingual sentiment classification model based on BERT</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">構建資料採集系統，實時抓取社交媒體資料</span>
+                                    <span class="lang-en hidden">Built data collection system to real-time crawl social media data</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">開發情感趨勢分析和可視化功能</span>
+                                    <span class="lang-en hidden">Developed sentiment trend analysis and visualization functions</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Python</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Hugging Face</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Scrapy</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">D3.js</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 项目4 -->
+                <div class="bg-white rounded-xl shadow-custom overflow-hidden">
+                    <div class="h-48 bg-gray-200 relative">
+                        <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&amp;ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&amp;auto=format&amp;fit=crop&amp;w=500&amp;q=80" alt="校園智慧導覽系統" class="w-full h-full object-cover">
+                        <div class="absolute top-4 right-4 bg-secondary text-white text-xs font-bold px-2 py-1 rounded">
+                            2021.03 - 2021.07
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-2 text-primary">
+                            <span class="lang-zh">校園智慧導覽系統</span>
+                            <span class="lang-en hidden">Campus Intelligent Navigation System</span>
+                        </h3>
+                        <p class="text-gray-600 mb-4">
+                            <span class="lang-zh">基于AR技术的校園智慧導覽系統，为访客提供交互式导航和信息展示。</span>
+                            <span class="lang-en hidden">An AR-based campus intelligent navigation system providing interactive navigation and information display for visitors.</span>
+                        </p>
+                        <div class="mb-4">
+                            <h4 class="font-medium text-gray-700 mb-2">
+                                <span class="lang-zh">主要職責：</span>
+                                <span class="lang-en hidden">Main Responsibilities:</span>
+                            </h4>
+                            <ul class="list-disc list-inside text-gray-600 space-y-1">
+                                <li>
+                                    <span class="lang-zh">設計系統架構和用戶介面</span>
+                                    <span class="lang-en hidden">Designed system architecture and user interface</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">實現基於地理位置的導航演算法</span>
+                                    <span class="lang-en hidden">Implemented location-based navigation algorithm</span>
+                                </li>
+                                <li>
+                                    <span class="lang-zh">開發AR資訊展示功能，實現建築物資訊的疊加顯示</span>
+                                    <span class="lang-en hidden">Developed AR information display function, implementing overlay display of building information</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Java</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Android</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">ARCore</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Google Maps API</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 個人陳述部分 -->
+        <section id="statement" class="mb-16 section-fade">
+            <h2 class="text-2xl font-bold mb-6 text-primary flex items-center">
+                <i class="fa fa-file-text mr-3"></i>
+                <span class="lang-zh">個人陳述</span>
+                <span class="lang-en hidden">Personal Statement</span>
+            </h2>
+            
+            <div class="bg-white rounded-xl shadow-custom p-8">
+                <div class="prose max-w-none">
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        <span class="lang-zh">
+                            我对计算机科学的热爱始于高中时期，当时我参加了学校的编程竞赛小组，从此便被算法的魅力所吸引。进入大学后，我系统地学习了计算机科学的基础理论和实践技能，并在人工智能和数据科学领域找到了自己的研究興趣。
+                        </span>
+                        <span class="lang-en hidden">
+                            My passion for computer science began in high school when I joined the school's programming competition team, and I was immediately attracted by the charm of algorithms. After entering university, I systematically studied the basic theories and practical skills of computer science, and found my research interest in the fields of artificial intelligence and data science.
+                        </span>
+                    </p>
+                    
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        <span class="lang-zh">
+                            在本科学习期间，我积极参与各类科研项目和学术竞赛，这些经历不仅加深了我对专业知识的理解，也培养了我的团队协作能力和问题解决能力。特别是在智慧醫療影像分析系統的项目中，我深刻体会到人工智能技术在解决实际问题中的巨大潜力，这更加坚定了我在这一领域深入研究的决心。
+                        </span>
+                        <span class="lang-en hidden">
+                            During my undergraduate studies, I actively participated in various research projects and academic competitions. These experiences not only deepened my understanding of professional knowledge, but also cultivated my teamwork and problem-solving abilities. Especially in the project of intelligent medical image analysis system, I deeply realized the great potential of artificial intelligence technology in solving practical problems, which further strengthened my determination to conduct in-depth research in this field.
+                        </span>
+                    </p>
+                    
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        <span class="lang-zh">
+                            我選擇申請貴校的電腦科學研究生專案，是因為貴校在人工智慧和資料科學領域有著卓越的研究成果和學術聲譽。我希望能夠在貴校繼續深造，師從頂尖學者，深入研究機器學習演算法及其在醫療、交通等領域的應用，為解決實際問題貢獻自己的力量。
+                        </span>
+                        <span class="lang-en hidden">
+                            I choose to apply for the graduate program in computer science at your university because of its outstanding research achievements and academic reputation in the fields of artificial intelligence and data science. I hope to continue my studies at your university, learn from top scholars, and conduct in-depth research on machine learning algorithms and their applications in medical, transportation and other fields, contributing my own strength to solving practical problems.
+                        </span>
+                    </p>
+                    
+                    <p class="text-gray-700 mb-4 leading-relaxed">
+                        <span class="lang-zh">
+                            如果能夠被录取，我計劃在研究生階段重點研究以下幾個方向：一是改進深度學習模型在醫療影像分析中的準確性和可解釋性；二是探索多模態資料融合方法，提高預測模型的性能；三是研究人工智慧技術在智慧交通系統中的應用，為城市交通管理提供決策支援。
+                        </span>
+                        <span class="lang-en hidden">
+                            If admitted, I plan to focus on the following research directions during my graduate studies: first, improving the accuracy and interpretability of deep learning models in medical image analysis; second, exploring multimodal data fusion methods to improve the performance of prediction models; third, researching the application of artificial intelligence technology in intelligent transportation systems to provide decision support for urban traffic management.
+                        </span>
+                    </p>
+                    
+                    <p class="text-gray-700 leading-relaxed">
+                        <span class="lang-zh">
+                            我相信，憑藉我紮實的學術基礎、豐富的專案經驗和對研究的熱情，我能夠在貴校的研究生專案中取得優異的成績，並為學校的學術研究做出積極的貢獻。我期待著能夠加入貴校的學術社區，與志同道合的夥伴一起探索人工智慧的前沿領域。
+                        </span>
+                        <span class="lang-en hidden">
+                            I believe that with my solid academic foundation, rich project experience and passion for research, I can achieve excellent results in your graduate program and make positive contributions to the school's academic research. I look forward to joining your academic community and exploring the frontier areas of artificial intelligence with like-minded partners.
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-primary text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <h3 class="text-xl font-bold mb-2">
+                        <span class="lang-zh">个人升学简历</span>
+                        <span class="lang-en hidden">Academic Resume</span>
+                    </h3>
+                    <p class="text-blue-200">
+                        <span class="lang-zh">為申請研究生專案準備</span>
+                        <span class="lang-en hidden">Prepared for Graduate Program Application</span>
+                    </p>
+                </div>
+                
+                <div class="flex space-x-6">
+                    <a href="#" class="text-white hover:text-blue-200 transition-colors">
+                        <i class="fa fa-github text-2xl"></i>
+                    </a>
+                    <a href="#" class="text-white hover:text-blue-200 transition-colors">
+                        <i class="fa fa-linkedin text-2xl"></i>
+                    </a>
+                    <a href="#" class="text-white hover:text-blue-200 transition-colors">
+                        <i class="fa fa-envelope text-2xl"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="mt-8 pt-6 border-t border-blue-800 text-center text-blue-200 text-sm">
+                <p>© 2024 个人升学简历. 保留所有权利.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // 导航栏滚动效果
+        window.addEventListener('scroll', function() {
+            const navbar = document.getElementById('navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('py-2', 'shadow');
+                navbar.classList.remove('py-3');
+            } else {
+                navbar.classList.add('py-3');
+                navbar.classList.remove('py-2', 'shadow');
+            }
+        });
+        
+        // 移动端菜单切换
+        document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+            const mobileMenu = document.getElementById('mobileMenu');
+            mobileMenu.classList.toggle('hidden');
+        });
+        
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                    
+                    // 关闭移动端菜单
+                    document.getElementById('mobileMenu').classList.add('hidden');
+                }
+            });
+        });
+        
+        // 滚动动画
+        function handleScrollAnimation() {
+            const sections = document.querySelectorAll('.section-fade');
+            
+            sections.forEach(section => {
+                const sectionTop = section.getBoundingClientRect().top;
+                const windowHeight = window.innerHeight;
+                
+                if (sectionTop < windowHeight * 0.75) {
+                    section.classList.add('active');
+                    
+                    // 如果是技能部分，启动技能条动画
+                    if (section.id === 'skills') {
+                        const skillBars = document.querySelectorAll('.skill-progress');
+                        skillBars.forEach(bar => {
+                            const width = bar.getAttribute('data-width');
+                            setTimeout(() => {
+                                bar.style.width = width;
+                            }, 300);
+                        });
+                    }
+                }
+            });
+        }
+        
+        // 初始化技能雷达图
+        function initSkillsChart() {
+            const ctx = document.getElementById('skillsRadarChart').getContext('2d');
+            
+            const labels = [
+                '機器學習',
+                '資料結構',
+                '演算法設計',
+                '電腦視覺',
+                '自然語言處理',
+                '系統設計'
+            ];
+            
+            const labelsEn = [
+                'Machine Learning',
+                'Data Structures',
+                'Algorithm Design',
+                'Computer Vision',
+                'NLP',
+                'System Design'
+            ];
+            
+            // 根据当前语言选择标签
+            const currentLang = document.querySelector('.lang-zh').style.display === 'none' ? labelsEn : labels;
+            
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: currentLang,
+                    datasets: [{
+                        label: '技能水平',
+                        data: [90, 85, 88, 82, 78, 75],
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgba(52, 152, 219, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(52, 152, 219, 1)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                stepSize: 20
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 语言切换功能
+        document.getElementById('langToggle').addEventListener('click', function() {
+            const zhElements = document.querySelectorAll('.lang-zh');
+            const enElements = document.querySelectorAll('.lang-en');
+            
+            zhElements.forEach(el => {
+                el.classList.toggle('hidden');
+            });
+            
+            enElements.forEach(el => {
+                el.classList.toggle('hidden');
+            });
+            
+            // 重新初始化雷达图以更新标签
+            initSkillsChart();
+        });
+        
+        // 匯出PDF功能
+        document.getElementById('printBtn').addEventListener('click', function() {
+            window.print();
+        });
+        
+        // 页面加载完成后执行
+        window.addEventListener('load', function() {
+            handleScrollAnimation();
+            initSkillsChart();
+        });
+        
+        // 滚动时执行动画
+        window.addEventListener('scroll', handleScrollAnimation);
+    </script>
+
+</body></html>
