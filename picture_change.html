@@ -1,0 +1,960 @@
+<html lang="zh-CN"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>照片壓縮工具</title>
+  <!-- Tailwind CSS v3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#10B981',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+            light: '#F3F4F6',
+            dark: '#1F2937'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .transition-all-300 {
+        transition: all 300ms ease-in-out;
+      }
+      .shadow-hover {
+        @apply transition-all duration-300;
+      }
+      .shadow-hover:hover {
+        @apply shadow-lg transform -translate-y-1;
+      }
+      .glass-effect {
+        @apply bg-white bg-opacity-20 backdrop-blur-lg;
+      }
+    }
+    
+    /* 自定义样式 */
+    .slider-thumb::-webkit-slider-thumb {
+      @apply appearance-none w-5 h-5 rounded-full bg-primary border-2 border-white cursor-pointer;
+    }
+    .slider-thumb::-moz-range-thumb {
+      @apply appearance-none w-5 h-5 rounded-full bg-primary border-2 border-white cursor-pointer;
+    }
+    .drag-area.active {
+      @apply border-primary bg-blue-50;
+    }
+    .progress-bar {
+      @apply h-2 bg-gray-200 rounded-full overflow-hidden;
+    }
+    .progress-bar-fill {
+      @apply h-full bg-primary transition-all duration-300;
+    }
+    .image-preview {
+      @apply relative overflow-hidden rounded-lg shadow-md;
+    }
+    .image-preview img {
+      @apply w-full h-full object-contain;
+    }
+    .file-info {
+      @apply absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-2 text-sm;
+    }
+    .tooltip {
+      @apply invisible absolute z-10 py-1 px-2 bg-dark text-white text-xs rounded opacity-0 transition-opacity duration-300;
+    }
+    .has-tooltip:hover .tooltip {
+      @apply visible opacity-100;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- 顶部导航 -->
+    <header class="mb-8">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="flex items-center mb-4 md:mb-0">
+          <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white mr-3">
+            <i class="fa fa-compress text-xl"></i>
+          </div>
+          <h1 class="text-2xl font-bold text-dark">照片壓縮工具</h1>
+        </div>
+        <div class="flex space-x-4">
+          <button id="helpBtn" class="flex items-center px-4 py-2 rounded-lg bg-light text-dark hover:bg-gray-200 transition-all-300">
+            <i class="fa fa-question-circle mr-2"></i>
+            <span>說明</span>
+          </button>
+          <button id="themeToggle" class="flex items-center px-4 py-2 rounded-lg bg-light text-dark hover:bg-gray-200 transition-all-300">
+            <i class="fa fa-moon-o mr-2"></i>
+            <span>切換主題</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主要内容区域 -->
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- 左侧：上传和預覽区域 -->
+      <div class="lg:col-span-2 space-y-6">
+        <!-- 上传区域 -->
+        <div id="uploadArea" class="drag-area border-2 border-dashed border-gray-300 rounded-xl p-8 text-center transition-all-300 cursor-pointer">
+          <div class="flex flex-col items-center justify-center">
+            <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-primary mb-4">
+              <i class="fa fa-cloud-upload text-3xl"></i>
+            </div>
+            <h3 class="text-xl font-semibold text-dark mb-2">拖放檔案到此處</h3>
+            <p class="text-gray-500 mb-4">或者點擊上傳</p>
+            <input type="file" id="fileInput" class="hidden" accept="image/*" multiple="">
+            <button id="browseBtn" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-all-300 shadow-md">
+              選擇檔案
+            </button>
+            <p class="text-xs text-gray-400 mt-4">支持 JPG, PNG, WebP, GIF 格式，单个文件最大 10MB</p>
+          </div>
+        </div>
+
+        <!-- 預覽区域 -->
+        <div id="previewArea" class="hidden">
+          <h3 class="text-lg font-semibold text-dark mb-4">預覽</h3>
+          
+          <!-- 壓縮前預覽 -->
+          <div class="mb-6">
+            <h4 class="text-sm font-medium text-gray-500 mb-2">壓縮前</h4>
+            <div id="originalPreview" class="image-preview h-64 bg-gray-100">
+              <!-- 原图預覽将在这里显示 -->
+            </div>
+          </div>
+          
+          <!-- 壓縮後預覽 -->
+          <div>
+            <h4 class="text-sm font-medium text-gray-500 mb-2">壓縮後</h4>
+            <div id="compressedPreview" class="image-preview h-64 bg-gray-100">
+              <!-- 壓縮後图片預覽将在这里显示 -->
+            </div>
+          </div>
+          
+          <!-- 对比结果 -->
+          <div id="comparisonResult" class="hidden mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex justify-between items-center">
+              <div>
+                <h4 class="font-medium text-green-800">壓縮成功！</h4>
+                <div class="flex space-x-4 mt-2">
+                  <div>
+                    <p class="text-xs text-gray-500">原始大小</p>
+                    <p id="originalSize" class="font-medium text-dark">-</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">壓縮後大小</p>
+                    <p id="compressedSize" class="font-medium text-dark">-</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500">壓縮率</p>
+                    <p id="compressionRatio" class="font-medium text-green-600">-</p>
+                  </div>
+                </div>
+              </div>
+              <button id="downloadBtn" class="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-green-600 transition-all-300 shadow-md">
+                <i class="fa fa-download mr-2"></i>
+                下載
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 批次處理区域 -->
+        <div id="batchArea" class="hidden">
+          <h3 class="text-lg font-semibold text-dark mb-4">批次處理</h3>
+          <div id="batchList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <!-- 批次處理的图片列表将在这里显示 -->
+          </div>
+          <div class="mt-6 flex justify-between items-center">
+            <div>
+              <span id="batchCount" class="text-sm text-gray-500">已選擇 0 個檔案</span>
+              <span id="batchTotalSize" class="text-sm text-gray-500 ml-4">總大小: 0 KB</span>
+            </div>
+            <div class="flex space-x-3">
+              <button id="clearBatchBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all-300">
+                清空
+              </button>
+              <button id="batchCompressBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-all-300 shadow-md">
+                批次壓縮
+              </button>
+              <button id="batchDownloadBtn" class="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-green-600 transition-all-300 shadow-md hidden">
+                <i class="fa fa-download mr-2"></i>
+                批量下載
+              </button>
+            </div>
+          </div>
+          
+          <!-- 批次處理进度 -->
+          <div id="batchProgress" class="hidden mt-6">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-sm font-medium text-dark">處理進度</span>
+              <span id="batchProgressText" class="text-sm text-gray-500">0%</span>
+            </div>
+            <div class="progress-bar">
+              <div id="batchProgressBar" class="progress-bar-fill" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧：控制面板 -->
+      <div class="bg-white rounded-xl shadow-md p-6 space-y-6">
+        <h2 class="text-xl font-semibold text-dark mb-4">壓縮設定</h2>
+        
+        <!-- 壓縮品質设置 -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label for="qualitySlider" class="text-sm font-medium text-dark">壓縮品質</label>
+            <span id="qualityValue" class="text-sm font-medium text-primary">80%</span>
+          </div>
+          <input type="range" id="qualitySlider" min="10" max="100" value="80" class="w-full h-2 bg-gray-200 rounded-full slider-thumb">
+          <div class="flex justify-between text-xs text-gray-400 mt-1">
+            <span>低品質</span>
+            <span>高品質</span>
+          </div>
+        </div>
+        
+        <!-- 预设压缩级别 -->
+        <div>
+          <p class="text-sm font-medium text-dark mb-2">預設等級</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button data-quality="50" class="preset-btn px-3 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition-all-300">
+              高壓縮
+            </button>
+            <button data-quality="80" class="preset-btn px-3 py-2 text-xs border border-primary bg-blue-50 text-primary rounded-lg hover:bg-blue-100 transition-all-300">
+              平衡
+            </button>
+            <button data-quality="90" class="preset-btn px-3 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition-all-300">
+              低壓縮
+            </button>
+          </div>
+        </div>
+        
+        <!-- 調整尺寸设置 -->
+        <div class="pt-4 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-4">
+            <label class="text-sm font-medium text-dark">調整尺寸</label>
+            <label class="inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="resizeToggle" class="sr-only peer">
+              <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+          
+          <div id="resizeOptions" class="space-y-4 hidden">
+            <div>
+              <label for="maxWidth" class="text-sm font-medium text-dark block mb-1">最大寬度 (px)</label>
+              <input type="number" id="maxWidth" min="100" max="8000" value="1920" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+            </div>
+            
+            <div>
+              <label for="maxHeight" class="text-sm font-medium text-dark block mb-1">最大高度 (px)</label>
+              <input type="number" id="maxHeight" min="100" max="8000" value="1080" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+            </div>
+            
+            <div class="flex items-center">
+              <input type="checkbox" id="maintainRatio" checked="" class="mr-2">
+              <label for="maintainRatio" class="text-sm text-gray-600">保持寬高比</label>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 輸出格式设置 -->
+        <div class="pt-4 border-t border-gray-100">
+          <label for="outputFormat" class="text-sm font-medium text-dark block mb-2">輸出格式</label>
+          <select id="outputFormat" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent appearance-none bg-white bg-[url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22></polyline></svg>')] bg-[length:1.5em_1.5em] bg-[right_0.5em_center] bg-no-repeat pr-8">
+            <option value="image/jpeg">JPG</option>
+            <option value="image/png">PNG</option>
+            <option value="image/webp">WebP</option>
+          </select>
+        </div>
+        
+        <!-- AI智能壓縮 -->
+        <div class="pt-4 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-4">
+            <label class="text-sm font-medium text-dark">AI智能壓縮</label>
+            <label class="inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="aiToggle" class="sr-only peer">
+              <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+          
+          <div id="aiOptions" class="hidden">
+            <div class="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+              <p class="flex items-center">
+                <i class="fa fa-magic mr-2"></i>
+                AI將根據圖片內容自動推薦最佳壓縮參數
+              </p>
+            </div>
+            
+            <div class="mt-3">
+              <label class="text-sm font-medium text-dark block mb-1">圖片類型</label>
+              <select id="imageType" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                <option value="auto">自動偵測</option>
+                <option value="photo">照片/風景</option>
+                <option value="portrait">人像</option>
+                <option value="document">文件/圖表</option>
+                <option value="art">插畫/藝術作品</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 開始壓縮按钮 -->
+        <div class="pt-4">
+          <button id="compressBtn" class="w-full py-3 bg-primary text-white rounded-lg hover:bg-blue-600 transition-all-300 shadow-md flex items-center justify-center">
+            <i class="fa fa-compress mr-2"></i>
+            開始壓縮
+          </button>
+        </div>
+        
+        <!-- 处理状态 -->
+        <div id="processingStatus" class="hidden">
+          <div class="flex flex-col items-center justify-center py-6">
+            <div class="w-12 h-12 border-4 border-t-primary border-r-primary border-b-primary border-l-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-sm font-medium text-dark">正在處理...</p>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <!-- 說明模态框 -->
+    <div id="helpModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+      <div class="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-dark">使用說明</h3>
+            <button id="closeHelpBtn" class="text-gray-400 hover:text-gray-600">
+              <i class="fa fa-times text-xl"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4">
+            <div>
+              <h4 class="font-medium text-dark mb-2">如何使用</h4>
+              <ol class="list-decimal list-inside space-y-2 text-gray-600">
+                <li>點擊「選擇檔案」按鈕或拖拽圖片到上傳區域</li>
+                <li>調整壓縮設定（品質、尺寸等）</li>
+                <li>點擊「開始壓縮」按鈕</li>
+                <li>預覽壓縮結果並下載壓縮後的圖片</li>
+              </ol>
+            </div>
+            
+            <div>
+              <h4 class="font-medium text-dark mb-2">壓縮設定說明</h4>
+              <ul class="list-disc list-inside space-y-2 text-gray-600">
+                <li><strong>壓縮品質</strong>：值越低，檔案越小，但可能影響圖片品質</li>
+                <li><strong>調整尺寸</strong>：可以限制圖片的最大寬度和高度</li>
+                <li><strong>輸出格式</strong>：選擇壓縮後的圖片格式</li>
+                <li><strong>AI智能壓縮</strong>：根據圖片類型自動優化壓縮參數</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 class="font-medium text-dark mb-2">批次處理</h4>
+              <p class="text-gray-600">
+                您可以同時上傳多張圖片進行批次處理。上傳多張圖片後，系統會自動切換到批次處理模式。
+                處理完成後，您可以單獨下載每張圖片或批次下載所有壓縮後的圖片。
+              </p>
+            </div>
+            
+            <div>
+              <h4 class="font-medium text-dark mb-2">常見問題</h4>
+              <div class="space-y-3">
+                <div>
+                  <p class="font-medium text-gray-700">為什麼我的圖片沒有明顯變小？</p>
+                  <p class="text-gray-600">如果您的圖片已經是高度壓縮的，再次壓縮可能不會明顯減小檔案大小。嘗試降低壓縮品質或調整圖片尺寸。</p>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-700">WebP格式有什麼優勢？</p>
+                  <p class="text-gray-600">WebP是一種現代圖片格式，通常比JPG和PNG提供更好的壓縮率和品質。但請注意，某些舊版瀏覽器可能不支援WebP格式。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 全局变量
+    let originalFile = null;
+    let compressedFile = null;
+    let batchFiles = [];
+    let compressedBatchFiles = [];
+    
+    // DOM元素
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const browseBtn = document.getElementById('browseBtn');
+    const previewArea = document.getElementById('previewArea');
+    const originalPreview = document.getElementById('originalPreview');
+    const compressedPreview = document.getElementById('compressedPreview');
+    const comparisonResult = document.getElementById('comparisonResult');
+    const originalSize = document.getElementById('originalSize');
+    const compressedSize = document.getElementById('compressedSize');
+    const compressionRatio = document.getElementById('compressionRatio');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const qualitySlider = document.getElementById('qualitySlider');
+    const qualityValue = document.getElementById('qualityValue');
+    const presetBtns = document.querySelectorAll('.preset-btn');
+    const resizeToggle = document.getElementById('resizeToggle');
+    const resizeOptions = document.getElementById('resizeOptions');
+    const maxWidth = document.getElementById('maxWidth');
+    const maxHeight = document.getElementById('maxHeight');
+    const maintainRatio = document.getElementById('maintainRatio');
+    const outputFormat = document.getElementById('outputFormat');
+    const aiToggle = document.getElementById('aiToggle');
+    const aiOptions = document.getElementById('aiOptions');
+    const imageType = document.getElementById('imageType');
+    const compressBtn = document.getElementById('compressBtn');
+    const processingStatus = document.getElementById('processingStatus');
+    const batchArea = document.getElementById('batchArea');
+    const batchList = document.getElementById('batchList');
+    const batchCount = document.getElementById('batchCount');
+    const batchTotalSize = document.getElementById('batchTotalSize');
+    const clearBatchBtn = document.getElementById('clearBatchBtn');
+    const batchCompressBtn = document.getElementById('batchCompressBtn');
+    const batchDownloadBtn = document.getElementById('batchDownloadBtn');
+    const batchProgress = document.getElementById('batchProgress');
+    const batchProgressText = document.getElementById('batchProgressText');
+    const batchProgressBar = document.getElementById('batchProgressBar');
+    const helpBtn = document.getElementById('helpBtn');
+    const helpModal = document.getElementById('helpModal');
+    const closeHelpBtn = document.getElementById('closeHelpBtn');
+    const themeToggle = document.getElementById('themeToggle');
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      // 设置事件监听器
+      setupEventListeners();
+    });
+    
+    // 设置事件监听器
+    function setupEventListeners() {
+      // 上传区域事件
+      uploadArea.addEventListener('click', () => fileInput.click());
+      uploadArea.addEventListener('dragover', handleDragOver);
+      uploadArea.addEventListener('dragleave', handleDragLeave);
+      uploadArea.addEventListener('drop', handleDrop);
+      
+      // 文件输入事件
+      fileInput.addEventListener('change', handleFileSelect);
+      
+      // 浏览按钮事件
+      browseBtn.addEventListener('click', () => fileInput.click());
+      
+      // 质量滑块事件
+      qualitySlider.addEventListener('input', () => {
+        qualityValue.textContent = `${qualitySlider.value}%`;
+        updatePresetSelection();
+      });
+      
+      // 预设按钮事件
+      presetBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const quality = parseInt(btn.dataset.quality);
+          qualitySlider.value = quality;
+          qualityValue.textContent = `${quality}%`;
+          updatePresetSelection();
+        });
+      });
+      
+      // 調整尺寸开关事件
+      resizeToggle.addEventListener('change', () => {
+        resizeOptions.classList.toggle('hidden', !resizeToggle.checked);
+      });
+      
+      // AI开关事件
+      aiToggle.addEventListener('change', () => {
+        aiOptions.classList.toggle('hidden', !aiToggle.checked);
+      });
+      
+      // 压缩按钮事件
+      compressBtn.addEventListener('click', compressImage);
+      
+      // 下載按钮事件
+      downloadBtn.addEventListener('click', downloadCompressedImage);
+      
+      // 批次處理事件
+      clearBatchBtn.addEventListener('click', clearBatchFiles);
+      batchCompressBtn.addEventListener('click', batchCompress);
+      batchDownloadBtn.addEventListener('click', batchDownload);
+      
+      // 說明模态框事件
+      helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+      closeHelpBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+      helpModal.addEventListener('click', (e) => {
+        if (e.target === helpModal) {
+          helpModal.classList.add('hidden');
+        }
+      });
+      
+      // 主题切换事件
+      themeToggle.addEventListener('click', toggleTheme);
+    }
+    
+    // 处理拖拽悬停
+    function handleDragOver(e) {
+      e.preventDefault();
+      uploadArea.classList.add('active');
+    }
+    
+    // 处理拖拽离开
+    function handleDragLeave(e) {
+      e.preventDefault();
+      uploadArea.classList.remove('active');
+    }
+    
+    // 处理拖拽放置
+    function handleDrop(e) {
+      e.preventDefault();
+      uploadArea.classList.remove('active');
+      
+      const files = e.dataTransfer.files;
+      handleFiles(files);
+    }
+    
+    // 处理文件选择
+    function handleFileSelect(e) {
+      const files = e.target.files;
+      handleFiles(files);
+    }
+    
+    // 处理文件
+    function handleFiles(files) {
+      if (!files.length) return;
+      
+      // 检查是否为图片文件
+      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+      if (!imageFiles.length) {
+        alert('请选择图片文件！');
+        return;
+      }
+      
+      // 检查文件大小
+      const largeFiles = imageFiles.filter(file => file.size > 10 * 1024 * 1024);
+      if (largeFiles.length) {
+        alert('部分文件超过10MB限制，已自动过滤！');
+        imageFiles = imageFiles.filter(file => file.size <= 10 * 1024 * 1024);
+        if (!imageFiles.length) return;
+      }
+      
+      // 单文件处理
+      if (imageFiles.length === 1) {
+        originalFile = imageFiles[0];
+        displayOriginalImage(originalFile);
+        batchArea.classList.add('hidden');
+        previewArea.classList.remove('hidden');
+        comparisonResult.classList.add('hidden');
+      } 
+      // 多文件处理
+      else {
+        batchFiles = imageFiles;
+        displayBatchFiles();
+        batchArea.classList.remove('hidden');
+        previewArea.classList.add('hidden');
+      }
+    }
+    
+    // 显示原始图片
+    function displayOriginalImage(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        originalPreview.innerHTML = `
+          <img src="${e.target.result}" alt="原始图片">
+          <div class="file-info">
+            ${file.name} (${formatFileSize(file.size)})
+          </div>
+        `;
+        
+        // 清空壓縮後預覽
+        compressedPreview.innerHTML = '';
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    // 显示批量文件
+    function displayBatchFiles() {
+      batchList.innerHTML = '';
+      
+      batchFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const fileItem = document.createElement('div');
+          fileItem.className = 'relative image-preview h-32 bg-gray-100 rounded-lg overflow-hidden';
+          fileItem.innerHTML = `
+            <img src="${e.target.result}" alt="${file.name}">
+            <div class="file-info flex justify-between items-center">
+              <span class="truncate max-w-[120px]">${file.name}</span>
+              <span class="text-xs">${formatFileSize(file.size)}</span>
+            </div>
+            <button class="absolute top-1 right-1 w-6 h-6 bg-black bg-opacity-50 rounded-full text-white flex items-center justify-center hover:bg-opacity-70 remove-file" data-index="${index}">
+              <i class="fa fa-times text-xs"></i>
+            </button>
+          `;
+          batchList.appendChild(fileItem);
+          
+          // 添加删除按钮事件
+          fileItem.querySelector('.remove-file').addEventListener('click', (e) => {
+            const index = parseInt(e.currentTarget.dataset.index);
+            batchFiles.splice(index, 1);
+            displayBatchFiles();
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+      
+      // 更新批量信息
+      batchCount.textContent = `已选择 ${batchFiles.length} 个文件`;
+      const totalSize = batchFiles.reduce((sum, file) => sum + file.size, 0);
+      batchTotalSize.textContent = `總大小: ${formatFileSize(totalSize)}`;
+      
+      // 重置批量下載按钮
+      batchDownloadBtn.classList.add('hidden');
+    }
+    
+    // 更新预设选择
+    function updatePresetSelection() {
+      const value = parseInt(qualitySlider.value);
+      
+      presetBtns.forEach(btn => {
+        const quality = parseInt(btn.dataset.quality);
+        if (quality === value) {
+          btn.classList.add('border-primary', 'bg-blue-50', 'text-primary');
+          btn.classList.remove('border-gray-200');
+        } else {
+          btn.classList.remove('border-primary', 'bg-blue-50', 'text-primary');
+          btn.classList.add('border-gray-200');
+        }
+      });
+    }
+    
+    // 压缩图片
+    function compressImage() {
+      if (!originalFile) return;
+      
+      // 显示处理状态
+      compressBtn.disabled = true;
+      processingStatus.classList.remove('hidden');
+      
+      // 获取壓縮設定
+      const quality = parseInt(qualitySlider.value) / 100;
+      const format = outputFormat.value;
+      const shouldResize = resizeToggle.checked;
+      const maxWidthValue = parseInt(maxWidth.value);
+      const maxHeightValue = parseInt(maxHeight.value);
+      const maintainRatioValue = maintainRatio.checked;
+      const useAI = aiToggle.checked;
+      const imageTypeValue = imageType.value;
+      
+      // 使用Web Worker进行压缩（模拟）
+      setTimeout(() => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            // 创建Canvas
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // 調整尺寸
+            if (shouldResize) {
+              if (maintainRatioValue) {
+                if (width > height) {
+                  if (width > maxWidthValue) {
+                    height = Math.round(height * (maxWidthValue / width));
+                    width = maxWidthValue;
+                  }
+                } else {
+                  if (height > maxHeightValue) {
+                    width = Math.round(width * (maxHeightValue / height));
+                    height = maxHeightValue;
+                  }
+                }
+              } else {
+                width = maxWidthValue;
+                height = maxHeightValue;
+              }
+            }
+            
+            // 设置Canvas尺寸
+            canvas.width = width;
+            canvas.height = height;
+            
+            // 绘制图片
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // AI智能壓縮（模拟）
+            let finalQuality = quality;
+            if (useAI) {
+              if (imageTypeValue === 'portrait') {
+                finalQuality = Math.max(quality, 0.8); // 人像保持较高品質
+              } else if (imageTypeValue === 'document') {
+                finalQuality = Math.min(quality, 0.7); // 文档可以接受较低品質
+              } else if (imageTypeValue === 'art') {
+                finalQuality = Math.max(quality, 0.85); // 艺术作品需要高保真
+              }
+            }
+            
+            // 导出壓縮後的图片
+            canvas.toBlob((blob) => {
+              compressedFile = new File([blob], getCompressedFileName(originalFile.name, format), { type: format });
+              
+              // 显示壓縮後的图片
+              const compressedUrl = URL.createObjectURL(compressedFile);
+              compressedPreview.innerHTML = `
+                <img src="${compressedUrl}" alt="壓縮後图片">
+                <div class="file-info">
+                  ${compressedFile.name} (${formatFileSize(compressedFile.size)})
+                </div>
+              `;
+              
+              // 显示对比结果
+              originalSize.textContent = formatFileSize(originalFile.size);
+              compressedSize.textContent = formatFileSize(compressedFile.size);
+              
+              const ratio = 100 - Math.round((compressedFile.size / originalFile.size) * 100);
+              compressionRatio.textContent = `节省 ${ratio}%`;
+              
+              comparisonResult.classList.remove('hidden');
+              
+              // 隐藏处理状态
+              compressBtn.disabled = false;
+              processingStatus.classList.add('hidden');
+            }, format, finalQuality);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(originalFile);
+      }, 1000); // 模拟处理时间
+    }
+    
+    // 批次壓縮
+    function batchCompress() {
+      if (!batchFiles.length) return;
+      
+      // 重置压缩结果
+      compressedBatchFiles = [];
+      
+      // 显示进度条
+      batchProgress.classList.remove('hidden');
+      batchProgressBar.style.width = '0%';
+      batchProgressText.textContent = '0%';
+      
+      // 禁用按钮
+      batchCompressBtn.disabled = true;
+      
+      // 获取壓縮設定
+      const quality = parseInt(qualitySlider.value) / 100;
+      const format = outputFormat.value;
+      const shouldResize = resizeToggle.checked;
+      const maxWidthValue = parseInt(maxWidth.value);
+      const maxHeightValue = parseInt(maxHeight.value);
+      const maintainRatioValue = maintainRatio.checked;
+      const useAI = aiToggle.checked;
+      const imageTypeValue = imageType.value;
+      
+      // 逐个压缩
+      let processedCount = 0;
+      
+      batchFiles.forEach((file, index) => {
+        setTimeout(() => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              // 创建Canvas
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              
+              // 調整尺寸
+              if (shouldResize) {
+                if (maintainRatioValue) {
+                  if (width > height) {
+                    if (width > maxWidthValue) {
+                      height = Math.round(height * (maxWidthValue / width));
+                      width = maxWidthValue;
+                    }
+                  } else {
+                    if (height > maxHeightValue) {
+                      width = Math.round(width * (maxHeightValue / height));
+                      height = maxHeightValue;
+                    }
+                  }
+                } else {
+                  width = maxWidthValue;
+                  height = maxHeightValue;
+                }
+              }
+              
+              // 设置Canvas尺寸
+              canvas.width = width;
+              canvas.height = height;
+              
+              // 绘制图片
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // AI智能壓縮（模拟）
+              let finalQuality = quality;
+              if (useAI) {
+                if (imageTypeValue === 'portrait') {
+                  finalQuality = Math.max(quality, 0.8);
+                } else if (imageTypeValue === 'document') {
+                  finalQuality = Math.min(quality, 0.7);
+                } else if (imageTypeValue === 'art') {
+                  finalQuality = Math.max(quality, 0.85);
+                }
+              }
+              
+              // 导出壓縮後的图片
+              canvas.toBlob((blob) => {
+                const compressedFile = new File([blob], getCompressedFileName(file.name, format), { type: format });
+                compressedBatchFiles.push(compressedFile);
+                
+                // 更新进度
+                processedCount++;
+                const progress = Math.round((processedCount / batchFiles.length) * 100);
+                batchProgressBar.style.width = `${progress}%`;
+                batchProgressText.textContent = `${progress}%`;
+                
+                // 更新文件项显示
+                const fileItems = batchList.querySelectorAll('.image-preview');
+                if (fileItems[index]) {
+                  const fileInfo = fileItems[index].querySelector('.file-info');
+                  fileInfo.innerHTML = `
+                    <span class="truncate max-w-[120px]">${compressedFile.name}</span>
+                    <span class="text-xs">${formatFileSize(compressedFile.size)}</span>
+                  `;
+                  
+                  // 添加压缩成功标记
+                  const successBadge = document.createElement('div');
+                  successBadge.className = 'absolute top-1 left-1 w-6 h-6 bg-green-500 rounded-full text-white flex items-center justify-center';
+                  successBadge.innerHTML = '<i class="fa fa-check text-xs"></i>';
+                  fileItems[index].appendChild(successBadge);
+                }
+                
+                // 全部处理完成
+                if (processedCount === batchFiles.length) {
+                  batchCompressBtn.disabled = false;
+                  batchDownloadBtn.classList.remove('hidden');
+                }
+              }, format, finalQuality);
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        }, index * 500); // 错开处理时间
+      });
+    }
+    
+    // 下載壓縮後的图片
+    function downloadCompressedImage() {
+      if (!compressedFile) return;
+      
+      const url = URL.createObjectURL(compressedFile);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = compressedFile.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // 批量下載
+    function batchDownload() {
+      if (!compressedBatchFiles.length) return;
+      
+      // 如果只有一个文件，直接下載
+      if (compressedBatchFiles.length === 1) {
+        const url = URL.createObjectURL(compressedBatchFiles[0]);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = compressedBatchFiles[0].name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      }
+      
+      // 多个文件，逐个下載
+      compressedBatchFiles.forEach((file, index) => {
+        setTimeout(() => {
+          const url = URL.createObjectURL(file);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, index * 200); // 错开下載时间
+      });
+    }
+    
+    // 清空批量文件
+    function clearBatchFiles() {
+      batchFiles = [];
+      compressedBatchFiles = [];
+      displayBatchFiles();
+      batchProgress.classList.add('hidden');
+      batchDownloadBtn.classList.add('hidden');
+    }
+    
+    // 获取壓縮後的文件名
+    function getCompressedFileName(originalName, format) {
+      const extension = format.split('/')[1];
+      const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+      return `${baseName}_compressed.${extension}`;
+    }
+    
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // 切換主題（简单实现）
+    function toggleTheme() {
+      const body = document.body;
+      const isDark = body.classList.contains('dark');
+      
+      if (isDark) {
+        body.classList.remove('dark', 'bg-gray-900', 'text-white');
+        body.classList.add('bg-gray-50', 'text-gray-900');
+        themeToggle.innerHTML = '<i class="fa fa-moon-o mr-2"></i><span>切換主題</span>';
+      } else {
+        body.classList.add('dark', 'bg-gray-900', 'text-white');
+        body.classList.remove('bg-gray-50', 'text-gray-900');
+        themeToggle.innerHTML = '<i class="fa fa-sun-o mr-2"></i><span>切換主題</span>';
+      }
+    }
+  </script>
+
+</body></html>
