@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>世界時鐘 - 即時全球時間</title>
+    
+    <!-- 更新位置：加入 iPhone 主畫面網頁圖示 (Apple Touch Icon) -->
+    <!-- 請將下方 href 中的網址替換為您的圖片網址 -->
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/DznnYXXw/tu-pian-1.jpg">
+    <!-- 加入網頁標題，確保加入主畫面時顯示正確名稱 -->
+    <meta name="apple-mobile-web-app-title" content="世界時鐘">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', 'Microsoft JhengHei', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .clock-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .clock-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .day-theme {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .night-theme {
+            background: rgba(15, 23, 42, 0.6);
+        }
+
+        .time-display {
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
+        }
+
+        .indicator-day { color: #facc15; }
+        .indicator-night { color: #94a3b8; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                世界時鐘 <span class="text-2xl font-light text-slate-400 block md:inline md:ml-2">World Clock</span>
+            </h1>
+            <p id="main-date" class="text-slate-400 text-lg"></p>
+        </header>
+
+        <div id="clock-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- 時鐘卡片會由 JavaScript 動態生成 -->
+        </div>
+
+        <footer class="mt-16 text-center text-slate-500 text-sm">
+            <p>© <span id="current-year"></span> 全球時間監測系統 · 自動偵測日光節約時間</p>
+        </footer>
+    </div>
+
+    <script>
+        const cities = [
+            { name: '台北, 台灣', zone: 'Asia/Taipei', icon: 'fa-building' },
+            { name: '東京, 日本', zone: 'Asia/Tokyo', icon: 'fa-torii-gate' },
+            { name: '紐約, 美國', zone: 'America/New_York', icon: 'fa-statue-of-liberty' },
+            { name: '倫敦, 英國', zone: 'Europe/London', icon: 'fa-clock' },
+            { name: '巴黎, 法國', zone: 'Europe/Paris', icon: 'fa-archway' },
+            { name: '雪梨, 澳洲', zone: 'Australia/Sydney', icon: 'fa-water' }
+        ];
+
+        function updateClocks() {
+            const grid = document.getElementById('clock-grid');
+            const now = new Date();
+            
+            // 更新頁首日期
+            document.getElementById('main-date').textContent = now.toLocaleDateString('zh-TW', { 
+                year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' 
+            });
+            document.getElementById('current-year').textContent = now.getFullYear();
+
+            cities.forEach((city, index) => {
+                const timeString = now.toLocaleTimeString('zh-TW', { 
+                    timeZone: city.zone, 
+                    hour12: false, 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit' 
+                });
+
+                const dateString = now.toLocaleDateString('zh-TW', { 
+                    timeZone: city.zone,
+                    month: 'short',
+                    day: 'numeric'
+                });
+
+                // 判斷白天或黑夜 (06:00 - 18:00 為白天)
+                const localHour = parseInt(new Intl.DateTimeFormat('en-US', {
+                    timeZone: city.zone,
+                    hour: 'numeric',
+                    hour12: false
+                }).format(now));
+                
+                const isDay = localHour >= 6 && localHour < 18;
+                const themeClass = isDay ? 'day-theme' : 'night-theme';
+                const statusIcon = isDay ? 'fa-sun indicator-day' : 'fa-moon indicator-night';
+
+                let card = document.getElementById(`city-${index}`);
+                
+                if (!card) {
+                    card = document.createElement('div');
+                    card.id = `city-${index}`;
+                    card.className = `clock-card rounded-2xl p-6 flex flex-col justify-between ${themeClass}`;
+                    grid.appendChild(card);
+                }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h2 class="text-xl font-semibold text-white flex items-center gap-2">
+                                <i class="fas ${city.icon} text-blue-400 text-sm"></i>
+                                ${city.name}
+                            </h2>
+                            <p class="text-slate-400 text-sm mt-1">${dateString}</p>
+                        </div>
+                        <i class="fas ${statusIcon} text-xl animate-pulse"></i>
+                    </div>
+                    <div class="mt-4">
+                        <span class="time-display text-4xl md:text-5xl font-mono font-bold tracking-tighter text-white">
+                            ${timeString}
+                        </span>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-white/5 flex justify-between items-center text-xs text-slate-500 uppercase tracking-widest">
+                        <span>${city.zone.split('/')[0]}</span>
+                        <span>${isDay ? 'Daylight' : 'Night time'}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // 初始化與定時更新
+        window.onload = () => {
+            updateClocks();
+            setInterval(updateClocks, 1000);
+        };
+    </script>
+</body>
+</html>
