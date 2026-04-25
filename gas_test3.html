@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Sheets API 管理工具</title>
+    <style>
+        :root {
+            --primary-color: #1a73e8;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #dadce0;
+            --error-color: #d93025;
+            --success-color: #188038;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin: 20px;
+        }
+
+        h1, h2 {
+            color: #3c4043;
+            text-align: center;
+        }
+
+        .hidden { display: none; }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: #5f6368;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        button:active { opacity: 0.8; }
+
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-danger { background-color: var(--error-color); color: white; }
+        .btn-secondary { background-color: #5f6368; color: white; }
+
+        /* Layout */
+        .section {
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        #resultDisplay {
+            background: #f1f3f4;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            min-height: 50px;
+            max-height: 300px;
+            border: 1px solid var(--border-color);
+        }
+
+        #status {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .status-info { background: #323232; color: white; }
+        .status-error { background: var(--error-color); color: white; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 登入頁面 -->
+    <div id="loginPage" class="container">
+        <h1>GAS 管理系統登入</h1>
+        <div class="form-group">
+            <label>使用者名稱</label>
+            <input type="text" id="loginName" placeholder="請輸入名稱">
+        </div>
+        <div class="form-group">
+            <label>密碼</label>
+            <input type="password" id="loginPassword" placeholder="請輸入密碼">
+        </div>
+        <button class="btn-primary" style="width: 100%" onclick="login()">進入系統</button>
+    </div>
+
+    <!-- 主操作頁面 -->
+    <div id="mainPage" class="container hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Google Sheets 操作面板</h2>
+            <button class="btn-secondary" onclick="logout()">登出</button>
+        </div>
+
+        <!-- 上半部：讀取 -->
+        <div class="section">
+            <h3 style="margin-top: 0;">資料讀取</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <div style="flex: 1;">
+                    <label>試算表名稱</label>
+                    <input type="text" id="readSheet" value="sheet1">
+                </div>
+                <div style="flex: 1;">
+                    <label>儲存格範圍 (如 A1:B10)</label>
+                    <input type="text" id="readRange" placeholder="例如: A1:C5">
+                </div>
+            </div>
+            <button class="btn-primary" onclick="handleRead()">讀取資料</button>
+            <div id="resultDisplay" style="margin-top: 15px;">等待讀取結果...</div>
+        </div>
+
+        <!-- 下半部：寫入 -->
+        <div class="section">
+            <h3>資料寫入與管理</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <div style="flex: 1;">
+                    <label>試算表名稱</label>
+                    <input type="text" id="writeSheet" value="sheet1">
+                </div>
+                <div style="flex: 1;">
+                    <label>儲存格/目標 (如 A1 或 A)</label>
+                    <input type="text" id="writeRange" placeholder="範圍或起始點">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>寫入資料 (JSON 陣列格式，如: ["值1", "值2"] 或 [["列1"], ["列2"]])</label>
+                <textarea id="writeData" placeholder='例如: ["王小明", "95"]'></textarea>
+            </div>
+            <div class="button-group">
+                <button class="btn-success" onclick="handleWrite('write')">指定範圍寫入</button>
+                <button class="btn-success" onclick="handleWrite('write2End')">寫在最下方</button>
+                <button class="btn-success" onclick="handleWrite('write2Top')">從頭插入</button>
+                <button class="btn-danger" onclick="handleWrite('delete')">清除範圍內容</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 狀態提示 -->
+    <div id="status"></div>
+
+    <script>
+        // === 配置區域 ===
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzPuhzQLpM319GBSiR0yJpGWcCDBwbtrfCAEpU0VrOi3k-tO_ztLZP24LPa9VCqomfGnQ/exec'; // 請在此處替換您的實體 GAS 網址
+        
+        let auth = {
+            name: '',
+            password: ''
+        };
+
+        // === 核心邏輯 ===
+
+        function login() {
+            const n = document.getElementById('loginName').value;
+            const p = document.getElementById('loginPassword').value;
+            if (!n || !p) return showStatus('請輸入帳號密碼', true);
+            
+            auth.name = n;
+            auth.password = p;
+            
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainPage').classList.remove('hidden');
+            showStatus('登入成功');
+        }
+
+        function logout() {
+            auth = { name: '', password: '' };
+            document.getElementById('loginPage').classList.remove('hidden');
+            document.getElementById('mainPage').classList.add('hidden');
+        }
+
+        async function apiRequest(payload) {
+            const fullPayload = { ...auth, ...payload };
+            showStatus('通訊中...', false);
+
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // 注意：GAS 跨域 POST 常用 no-cors，但無法讀取 Response。
+                    // 如果您的 GAS 有處理 OPTIONS 或使用 text/plain 回傳，請改用 cors 並處理跳轉。
+                    // 根據手冊建議使用 text/plain:
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8'
+                    },
+                    body: JSON.stringify(fullPayload),
+                    redirect: 'follow'
+                });
+
+                // 因為 no-cors 無法獲取具體結果，這裡通常假設成功
+                // 如果需要讀取內容，GAS 端必須正確處理 CORS 並在此移除 no-cors
+                showStatus('請求已發送 (請檢查試算表)');
+                return true;
+            } catch (error) {
+                console.error(error);
+                showStatus('請求發生錯誤: ' + error.message, true);
+                return null;
+            }
+        }
+
+        // 特別處理讀取 (讀取通常需要獲得資料，故必須嘗試處理回傳)
+        async function handleRead() {
+            const sheet = document.getElementById('readSheet').value;
+            const range = document.getElementById('readRange').value;
+            const display = document.getElementById('resultDisplay');
+
+            if (!range) return showStatus('請輸入讀取範圍', true);
+
+            display.innerText = "正在讀取資料...";
+
+            const payload = {
+                sheet: sheet,
+                read: range
+            };
+
+            // 注意：GAS 的 Web App 讀取通常涉及跳轉。
+            // 由於開發環境安全限制，若出現跨域問題，建議在 GAS 端加入 CORS 標頭。
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                });
+                
+                const result = await response.json();
+                
+                if (result && Array.isArray(result.data)) {
+                    renderTable(result.data);
+                    showStatus('讀取成功');
+                } else {
+                    display.innerText = JSON.stringify(result, null, 2);
+                    showStatus('讀取完成');
+                }
+            } catch (e) {
+                display.innerText = "無法解析回傳資料 (請確認 GAS 已允許 CORS 並回傳 JSON)\n錯誤資訊: " + e.message;
+                showStatus('讀取失敗', true);
+            }
+        }
+
+        function handleWrite(action) {
+            const sheet = document.getElementById('writeSheet').value;
+            const range = document.getElementById('writeRange').value;
+            const rawData = document.getElementById('writeData').value;
+            
+            let data;
+            if (action !== 'delete') {
+                try {
+                    data = JSON.parse(rawData);
+                } catch (e) {
+                    return showStatus('資料格式錯誤 (必須為 JSON 陣列)', true);
+                }
+            }
+
+            const payload = { sheet: sheet };
+            
+            if (action === 'delete') {
+                payload.delete = range;
+            } else {
+                payload[action] = range;
+                payload.data = data;
+            }
+
+            apiRequest(payload);
+        }
+
+        // === UI 工具 ===
+
+        function renderTable(data) {
+            const display = document.getElementById('resultDisplay');
+            if (!data || data.length === 0) {
+                display.innerText = "範圍內無資料";
+                return;
+            }
+
+            let html = '<table>';
+            data.forEach(row => {
+                html += '<tr>';
+                if (Array.isArray(row)) {
+                    row.forEach(cell => {
+                        html += `<td>${cell === null ? '' : cell}</td>`;
+                    });
+                } else {
+                    html += `<td>${row}</td>`;
+                }
+                html += '</tr>';
+            });
+            html += '</table>';
+            display.innerHTML = html;
+        }
+
+        function showStatus(msg, isError = false) {
+            const status = document.getElementById('status');
+            status.innerText = msg;
+            status.className = isError ? 'status-error' : 'status-info';
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
