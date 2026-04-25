@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一分鐘拼圖挑戰</title>
+        <!-- 更新位置：加入 iPhone 主畫面網頁圖示 (Apple Touch Icon) -->
+    <!-- 請將下方 href 中的網址替換為您的圖片網址 -->
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/7ZChW8Gp/puzzle.jpg">
+    <!-- 加入網頁標題，確保加入主畫面時顯示正確名稱 -->
+    <meta name="apple-mobile-web-app-title" content="一分鐘拼圖挑戰">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 設定拼圖板的容器樣式 */
+        .puzzle-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* 均分三列 */
+            gap: 2px;
+            background-color: #d1d5db;
+            border: 4px solid #1f2937;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 450px; /* 最大寬度限制 */
+            aspect-ratio: 1 / 1; /* 強制容器為正方形 */
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* 每個拼圖格子的樣式 */
+        .puzzle-piece {
+            width: 100%;
+            height: 100%;
+            background-image: url('https://i.postimg.cc/3RjF0D3B/3EC8BDEA-684B-41E1-A72E-DDF66D85B96F-1-105-c.jpg');
+            background-size: 300% 300%; /* 因為是 3x3，所以圖片縮放為 300% */
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .puzzle-piece.empty {
+            background: #f3f4f6;
+            cursor: default;
+        }
+
+        .puzzle-piece:not(.empty):active {
+            transform: scale(0.95);
+        }
+
+        .win-animation {
+            animation: celebrate 0.5s ease infinite alternate;
+        }
+
+        @keyframes celebrate {
+            from { transform: scale(1); }
+            to { transform: scale(1.02); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 font-sans">
+
+    <div class="max-w-md w-full bg-white p-6 rounded-2xl shadow-xl text-center">
+        <h1 class="text-2xl font-bold mb-4 text-gray-800">一分鐘拼圖挑戰</h1>
+        
+        <div class="flex justify-between mb-4 px-2">
+            <div class="text-lg font-semibold text-blue-600">
+                剩餘時間: <span id="timer">60</span>s
+            </div>
+            <div class="text-lg font-semibold text-gray-600">
+                步數: <span id="moves">0</span>
+            </div>
+        </div>
+
+        <!-- 拼圖板容器 -->
+        <div id="game-container" class="flex justify-center mb-6">
+            <div id="board" class="puzzle-board"></div>
+        </div>
+
+        <div id="message" class="hidden mb-4 p-3 rounded-lg font-bold text-center"></div>
+
+        <div class="space-y-4">
+            <button id="start-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-lg transition shadow-lg active:shadow-inner">
+                開始遊戲 / 重排
+            </button>
+            
+            <div class="pt-4 border-t border-gray-100">
+                <p class="text-xs text-gray-400 mb-2 italic">原圖參考</p>
+                <img src="https://i.postimg.cc/m2t5c8Fh/AAE1898E-41E4-4C2B-BAD8-620C5A3E0FAA-1-105-c.jpg" 
+                     alt="原圖參考" 
+                     class="mx-auto w-24 h-24 object-cover rounded shadow-sm opacity-50 grayscale hover:grayscale-0 transition cursor-help">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const timerElement = document.getElementById('timer');
+        const movesElement = document.getElementById('moves');
+        const startBtn = document.getElementById('start-btn');
+        const messageBox = document.getElementById('message');
+
+        let pieces = [];
+        let emptyIndex = 8; 
+        let timeLeft = 60;
+        let moves = 0;
+        let timerId = null;
+        let isGameActive = false;
+
+        const size = 3;
+
+        // 初始化棋盤數據
+        function initBoard() {
+            pieces = Array.from({ length: size * size }, (_, i) => i);
+            render();
+        }
+
+        // 渲染畫面
+        function render() {
+            boardElement.innerHTML = '';
+            pieces.forEach((pieceValue, index) => {
+                const piece = document.createElement('div');
+                piece.className = 'puzzle-piece';
+                
+                if (pieceValue === 8) {
+                    piece.classList.add('empty');
+                } else {
+                    // 計算背景圖偏移：3x3 網格中，每格位移量為 50% (0, 50, 100)
+                    const row = Math.floor(pieceValue / size);
+                    const col = pieceValue % size;
+                    const posX = (col / (size - 1)) * 100;
+                    const posY = (row / (size - 1)) * 100;
+                    piece.style.backgroundPosition = `${posX}% ${posY}%`;
+                    piece.onclick = () => movePiece(index);
+                }
+                boardElement.appendChild(piece);
+            });
+        }
+
+        function movePiece(index) {
+            if (!isGameActive) return;
+
+            const row = Math.floor(index / size);
+            const col = index % size;
+            const emptyRow = Math.floor(emptyIndex / size);
+            const emptyCol = emptyIndex % size;
+
+            // 判斷是否在空格上下左右
+            const isAdjacent = (Math.abs(row - emptyRow) === 1 && col === emptyCol) ||
+                              (Math.abs(col - emptyCol) === 1 && row === emptyRow);
+
+            if (isAdjacent) {
+                // 交換數據位置
+                [pieces[index], pieces[emptyIndex]] = [pieces[emptyIndex], pieces[index]];
+                emptyIndex = index;
+                moves++;
+                movesElement.innerText = moves;
+                render();
+                checkWin();
+            }
+        }
+
+        function shuffle() {
+            // 隨機移動 200 次來打亂，確保拼圖有解
+            for (let i = 0; i < 200; i++) {
+                const neighbors = getNeighbors(emptyIndex);
+                const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+                [pieces[randomNeighbor], pieces[emptyIndex]] = [pieces[emptyIndex], pieces[randomNeighbor]];
+                emptyIndex = randomNeighbor;
+            }
+        }
+
+        function getNeighbors(index) {
+            const row = Math.floor(index / size);
+            const col = index % size;
+            const neighbors = [];
+            if (row > 0) neighbors.push(index - size);
+            if (row < size - 1) neighbors.push(index + size);
+            if (col > 0) neighbors.push(index - 1);
+            if (col < size - 1) neighbors.push(index + 1);
+            return neighbors;
+        }
+
+        function startTimer() {
+            clearInterval(timerId);
+            timeLeft = 60;
+            timerElement.innerText = timeLeft;
+            timerId = setInterval(() => {
+                timeLeft--;
+                timerElement.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    endGame(false);
+                }
+            }, 1000);
+        }
+
+        function checkWin() {
+            const isWin = pieces.every((val, index) => val === index);
+            if (isWin) {
+                endGame(true);
+            }
+        }
+
+        function endGame(isWin) {
+            isGameActive = false;
+            clearInterval(timerId);
+            messageBox.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+            
+            if (isWin) {
+                messageBox.innerText = `戰勝挑戰！步數：${moves}，剩餘時間：${timeLeft}秒`;
+                messageBox.classList.add('bg-green-100', 'text-green-700');
+                boardElement.classList.add('win-animation');
+            } else {
+                messageBox.innerText = "時間終了！挑戰失敗。";
+                messageBox.classList.add('bg-red-100', 'text-red-700');
+            }
+        }
+
+        startBtn.onclick = () => {
+            isGameActive = true;
+            moves = 0;
+            messageBox.classList.add('hidden');
+            boardElement.classList.remove('win-animation');
+            
+            initBoard(); // 設為正確順序
+            shuffle();   // 打亂
+            render();    // 渲染打亂後的結果
+            startTimer();
+        };
+
+        // 頁面初次載入顯示完整（未打亂）拼圖
+        initBoard();
+    </script>
+</body>
+</html>
