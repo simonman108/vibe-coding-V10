@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>上課紀錄管理系統</title>
+    <!-- iPhone 主畫面圖示 -->
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/PrV9pDqp/cours-icon.jpg">
+    <meta name="apple-mobile-web-app-title" content="課程管理">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 引入指定字體 */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=TikTok+Sans:opsz,wght@12..36,300..900&display=swap');
+        
+        :root {
+            --ios-bg: #f2f2f7;
+        }
+
+        body {
+            /* 預設使用 TikTok Sans 處理數字與英文，備選為系統字體 */
+            font-family: 'TikTok Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--ios-bg);
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        /* 標題與課程名稱使用 Noto Serif SC */
+        .font-serif-title {
+            font-family: 'Noto Serif SC', serif;
+            letter-spacing: -0.02em;
+        }
+
+        .ios-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-bounce {
+            transition: transform 0.1s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+        }
+
+        .btn-bounce:active {
+            transform: scale(0.96);
+        }
+
+        .save-toast {
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transform: translate(-50%, 100px);
+            opacity: 0;
+        }
+
+        .save-toast.show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .progress-fill {
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <div class="max-w-md mx-auto px-6 pt-10">
+        <!-- 頂部標題區 -->
+        <header class="flex justify-between items-end mb-8">
+            <div>
+                <p class="text-xs font-bold text-blue-600 mb-1 tracking-widest uppercase">Hello, 學習愉快</p>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight font-serif-title">上課紀錄</h1>
+            </div>
+            <button onclick="manualSave()" class="flex items-center bg-white border border-slate-200 text-slate-800 px-5 py-2.5 rounded-2xl shadow-sm hover:bg-slate-50 transition-all btn-bounce">
+                <span class="mr-2">💾</span>
+                <span class="text-sm font-bold">儲存</span>
+            </button>
+        </header>
+
+        <!-- 課程卡片容器 -->
+        <div id="course-container" class="space-y-6">
+            <!-- 由 JavaScript 生成 -->
+        </div>
+
+        <!-- 操作日誌與管理 -->
+        <div class="mt-10 ios-card p-6 shadow-xl shadow-slate-200/50">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center font-serif-title">
+                    <span class="mr-2">🕒</span> 最近紀錄
+                </h3>
+                <span class="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold uppercase tracking-widest">Logs</span>
+            </div>
+            
+            <div id="log-list" class="space-y-3 max-h-56 overflow-y-auto no-scrollbar mb-8">
+                <!-- 日誌項目 -->
+            </div>
+
+            <!-- 管理按鈕 -->
+            <div class="pt-6 border-t border-slate-100 space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <button onclick="resetItem('piano')" class="bg-blue-50 text-blue-600 py-3 rounded-2xl text-[11px] font-black hover:bg-blue-100 transition-colors font-serif-title">
+                        重置鋼琴
+                    </button>
+                    <button onclick="resetItem('art')" class="bg-rose-50 text-rose-600 py-3 rounded-2xl text-[11px] font-black hover:bg-rose-100 transition-colors font-serif-title">
+                        重置畫畫
+                    </button>
+                    <button onclick="resetItem('english')" class="bg-emerald-50 text-emerald-600 py-3 rounded-2xl text-[11px] font-black hover:bg-emerald-100 transition-colors font-serif-title">
+                        重置英文
+                    </button>
+                </div>
+                <button onclick="resetAllData()" class="w-full bg-slate-900 text-white py-4 rounded-2xl text-xs font-black hover:bg-slate-800 transition-all btn-bounce shadow-lg shadow-slate-300 font-serif-title">
+                    清空所有數據
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 儲存提示彈窗 -->
+    <div id="save-msg" class="fixed bottom-12 left-1/2 save-toast z-50">
+        <div class="bg-slate-900/90 backdrop-blur-md text-white px-8 py-3.5 rounded-full shadow-2xl font-bold flex items-center border border-white/10">
+            <div class="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                <span class="text-white text-[10px]">✓</span>
+            </div>
+            進度已成功儲存
+        </div>
+    </div>
+
+    <!-- 繳費提醒 Modal -->
+    <div id="fee-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden p-8">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
+        <div class="bg-white rounded-[2.5rem] shadow-2xl z-10 w-full max-w-xs p-8 text-center relative animate-in fade-in zoom-in duration-300">
+            <div id="modal-line" class="absolute top-0 left-0 w-full h-3 rounded-t-[2.5rem]"></div>
+            <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+                💰
+            </div>
+            <h2 class="text-2xl font-black text-slate-900 mb-2 font-serif-title">該繳學費囉！</h2>
+            <p id="modal-desc" class="text-slate-500 text-sm mb-8 leading-relaxed"></p>
+            <button onclick="closeModal()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg shadow-slate-200 active:scale-95 transition-all font-serif-title">
+                好的，我知道了
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 核心配置
+        const config = {
+            piano: { name: '鋼琴課', emoji: '🎹', unit: 4, fee: 1000, color: 'blue', colorHex: '#2563eb' },
+            art: { name: '畫畫班', emoji: '🎨', unit: 4, fee: 580, color: 'rose', colorHex: '#e11d48' },
+            english: { name: '英文課', emoji: '🔤', unit: 40, fee: 11200, color: 'emerald', colorHex: '#059669' }
+        };
+
+        // 初始狀態
+        let state = {
+            counts: { piano: 0, art: 0, english: 0 },
+            logs: []
+        };
+
+        function init() {
+            try {
+                const savedCounts = {
+                    piano: parseInt(localStorage.getItem('count_piano')) || 0,
+                    art: parseInt(localStorage.getItem('count_art')) || 0,
+                    english: parseInt(localStorage.getItem('count_english')) || 0
+                };
+                const savedLogs = JSON.parse(localStorage.getItem('course_logs')) || [];
+                
+                state.counts = savedCounts;
+                state.logs = savedLogs;
+            } catch (e) {
+                console.error("Failed to load data", e);
+            }
+            render();
+        }
+
+        function manualSave() {
+            Object.keys(state.counts).forEach(key => {
+                localStorage.setItem(`count_${key}`, state.counts[key]);
+            });
+            localStorage.setItem('course_logs', JSON.stringify(state.logs));
+            showToast();
+        }
+
+        function showToast() {
+            const toast = document.getElementById('save-msg');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        function addSession(key) {
+            state.counts[key]++;
+            const item = config[key];
+            addLog(item.name, 'add');
+            render();
+            if (state.counts[key] > 0 && state.counts[key] % item.unit === 0) {
+                showFeeModal(key);
+            }
+        }
+
+        function subtractSession(key) {
+            if (state.counts[key] <= 0) return;
+            state.counts[key]--;
+            addLog(`取消 ${config[key].name}`, 'sub');
+            render();
+        }
+
+        function addLog(title, type) {
+            const now = new Date();
+            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            state.logs.unshift({ title, time: timeStr, type });
+            if (state.logs.length > 30) state.logs.pop();
+        }
+
+        function resetItem(key) {
+            if (confirm(`確定要重置「${config[key].name}」的紀錄嗎？`)) {
+                state.counts[key] = 0;
+                addLog(`重置 ${config[key].name}`, 'sub');
+                manualSave();
+                render();
+            }
+        }
+
+        function resetAllData() {
+            if (confirm('確定要清除「所有」上課紀錄與日誌嗎？這將無法復原。')) {
+                localStorage.clear();
+                state = { counts: { piano: 0, art: 0, english: 0 }, logs: [] };
+                render();
+            }
+        }
+
+        function render() {
+            const container = document.getElementById('course-container');
+            container.innerHTML = '';
+
+            Object.keys(config).forEach(key => {
+                const c = config[key];
+                const count = state.counts[key];
+                const progress = count % c.unit;
+                const percent = (progress / c.unit) * 100;
+                const currentUnit = Math.floor(count / c.unit) + 1;
+
+                const card = document.createElement('div');
+                card.className = 'ios-card p-6 shadow-sm';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-6">
+                        <div class="flex items-center">
+                            <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mr-4" style="background-color: ${c.colorHex}15">
+                                ${c.emoji}
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-black text-slate-800 font-serif-title">${c.name}</h2>
+                                <p class="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">期數 ${currentUnit} · 進度 ${progress}/${c.unit}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-4xl font-black" style="color: ${c.colorHex}">${count}</span>
+                            <p class="text-[10px] font-black text-slate-300 tracking-widest mt-0.5">堂數</p>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full bg-slate-100 h-2.5 rounded-full mb-6 overflow-hidden">
+                        <div class="progress-fill h-full rounded-full" style="width: ${percent}%; background-color: ${c.colorHex}"></div>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button onclick="addSession('${key}')" class="flex-grow text-white font-black py-4 rounded-2xl shadow-lg transition-all btn-bounce font-serif-title" style="background-color: ${c.colorHex}">
+                            記錄此堂課
+                        </button>
+                        <button onclick="subtractSession('${key}')" class="w-16 bg-white border border-slate-200 text-slate-400 flex items-center justify-center rounded-2xl transition-all btn-bounce">
+                            <span class="text-xl font-bold">−1</span>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            const logBox = document.getElementById('log-list');
+            if (state.logs.length === 0) {
+                logBox.innerHTML = `<p class="text-slate-300 text-center py-8 text-sm italic">尚無任何操作紀錄</p>`;
+            } else {
+                logBox.innerHTML = state.logs.map(l => `
+                    <div class="flex justify-between items-center p-4 bg-white/50 rounded-2xl border border-slate-100">
+                        <span class="font-bold text-sm ${l.type === 'sub' ? 'text-rose-500' : 'text-slate-700'} font-serif-title">${l.title}</span>
+                        <span class="text-slate-400 text-[10px] font-bold">${l.time}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function showFeeModal(key) {
+            const item = config[key];
+            const modal = document.getElementById('fee-modal');
+            const line = document.getElementById('modal-line');
+            const desc = document.getElementById('modal-desc');
+
+            line.style.backgroundColor = item.colorHex;
+            // 已將 NT$ 更改為 MOP
+            desc.innerHTML = `恭喜完成了 <b>${item.name}</b> 的一期課程！<br><br>下期學費預估：<br><span class="text-3xl font-black text-slate-900">MOP ${item.fee.toLocaleString()}</span>`;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('fee-modal').classList.add('hidden');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
