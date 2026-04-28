@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消費代金券記錄助手</title>
+        <link rel="apple-touch-icon" href="https://i.postimg.cc/YqdC6WdJ/voucher.jpg">
+    <meta name="apple-mobile-web-app-title" content="課程管理">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定義顏色主題 */
+        .theme-boc { border-top: 5px solid #e60012; } /* 中國銀行 - 紅 */
+        .theme-tfb { border-top: 5px solid #ffcc00; } /* 大豐銀行 - 黃 */
+        .theme-icbc { border-top: 5px solid #005bac; } /* 工商銀行 - 藍 */
+        .theme-mpay { border-top: 5px solid #f37021; } /* Mpay - 橙 */
+
+        .btn-boc { background-color: #e60012; }
+        .btn-tfb { background-color: #ffcc00; color: #333; }
+        .btn-icbc { background-color: #005bac; }
+        .btn-mpay { background-color: #f37021; }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 pb-24">
+
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">消費代金券記錄助手</h1>
+            <p class="text-gray-600 mt-2">隨時管理您的各行代金券庫存</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- 中國銀行 -->
+            <div class="bg-white rounded-xl shadow-md p-6 theme-boc">
+                <div class="flex items-center mb-4">
+                    <div class="w-3 h-3 rounded-full btn-boc mr-2"></div>
+                    <h2 class="text-xl font-bold text-gray-800">中國銀行</h2>
+                </div>
+                <div class="space-y-4" id="boc-group">
+                    <!-- 面額組件由 JS 生成 -->
+                </div>
+            </div>
+
+            <!-- 大豐銀行 -->
+            <div class="bg-white rounded-xl shadow-md p-6 theme-tfb">
+                <div class="flex items-center mb-4">
+                    <div class="w-3 h-3 rounded-full btn-tfb mr-2"></div>
+                    <h2 class="text-xl font-bold text-gray-800">大豐銀行</h2>
+                </div>
+                <div class="space-y-4" id="tfb-group"></div>
+            </div>
+
+            <!-- 工商銀行 -->
+            <div class="bg-white rounded-xl shadow-md p-6 theme-icbc">
+                <div class="flex items-center mb-4">
+                    <div class="w-3 h-3 rounded-full btn-icbc mr-2"></div>
+                    <h2 class="text-xl font-bold text-gray-800">工商銀行</h2>
+                </div>
+                <div class="space-y-4" id="icbc-group"></div>
+            </div>
+
+            <!-- Mpay -->
+            <div class="bg-white rounded-xl shadow-md p-6 theme-mpay">
+                <div class="flex items-center mb-4">
+                    <div class="w-3 h-3 rounded-full btn-mpay mr-2"></div>
+                    <h2 class="text-xl font-bold text-gray-800">Mpay</h2>
+                </div>
+                <div class="space-y-4" id="mpay-group"></div>
+            </div>
+
+        </div>
+
+        <!-- 底部控制欄 -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t p-4 flex justify-center space-x-4">
+            <button onclick="saveData()" class="px-8 py-3 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition-colors shadow-lg">
+                儲存資料
+            </button>
+            <button onclick="confirmReset()" class="px-8 py-3 bg-gray-200 text-gray-700 font-bold rounded-full hover:bg-gray-300 transition-colors shadow-lg">
+                重置清零
+            </button>
+        </div>
+    </div>
+
+    <!-- 訊息提示框 -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 px-6 py-3 bg-gray-800 text-white rounded-full shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none">
+        資料已儲存
+    </div>
+
+    <script>
+        const banks = [
+            { id: 'boc', name: '中國銀行', colorClass: 'btn-boc' },
+            { id: 'tfb', name: '大豐銀行', colorClass: 'btn-tfb' },
+            { id: 'icbc', name: '工商銀行', colorClass: 'btn-icbc' },
+            { id: 'mpay', name: 'Mpay', colorClass: 'btn-mpay' }
+        ];
+        const amounts = [10, 20, 50];
+
+        // 初始化頁面結構
+        function initUI() {
+            banks.forEach(bank => {
+                const container = document.getElementById(`${bank.id}-group`);
+                amounts.forEach(amount => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-lg';
+                    row.innerHTML = `
+                        <span class="font-medium text-gray-700">${amount} 元面額</span>
+                        <div class="flex items-center space-x-3">
+                            <button onclick="changeVal('${bank.id}', ${amount}, -1)" class="w-8 h-8 rounded-full border flex items-center justify-center hover:bg-white active:bg-gray-200 transition-colors">-</button>
+                            <input type="number" id="${bank.id}-${amount}" value="0" min="0" 
+                                class="w-12 text-center bg-transparent font-bold text-lg outline-none"
+                                onchange="validateInput(this)">
+                            <button onclick="changeVal('${bank.id}', ${amount}, 1)" class="w-8 h-8 rounded-full ${bank.colorClass} ${bank.id === 'tfb' ? '' : 'text-white'} flex items-center justify-center shadow hover:opacity-80 active:scale-95 transition-all">+</button>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+            });
+            loadData();
+        }
+
+        // 修改數值
+        function changeVal(bankId, amount, delta) {
+            const input = document.getElementById(`${bankId}-${amount}`);
+            let val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            input.value = val;
+        }
+
+        // 驗證輸入不為負數
+        function validateInput(input) {
+            if (input.value < 0 || input.value === "") input.value = 0;
+        }
+
+        // 儲存到 Local Storage
+        function saveData() {
+            const data = {};
+            banks.forEach(bank => {
+                data[bank.id] = {};
+                amounts.forEach(amount => {
+                    data[bank.id][amount] = document.getElementById(`${bank.id}-${amount}`).value;
+                });
+            });
+            localStorage.setItem('voucher_tracker_data', JSON.stringify(data));
+            showToast('資料已儲存至本地');
+        }
+
+        // 從 Local Storage 讀取
+        function loadData() {
+            const saved = localStorage.getItem('voucher_tracker_data');
+            if (saved) {
+                const data = JSON.parse(saved);
+                banks.forEach(bank => {
+                    if (data[bank.id]) {
+                        amounts.forEach(amount => {
+                            if (data[bank.id][amount] !== undefined) {
+                                document.getElementById(`${bank.id}-${amount}`).value = data[bank.id][amount];
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        // 重置功能
+        function confirmReset() {
+            if (window.confirm('確定要清空所有資料並重置為 0 嗎？')) {
+                banks.forEach(bank => {
+                    amounts.forEach(amount => {
+                        document.getElementById(`${bank.id}-${amount}`).value = 0;
+                    });
+                });
+                localStorage.removeItem('voucher_tracker_data');
+                showToast('資料已全部清零');
+            }
+        }
+
+        // 提示訊息
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        window.onload = initUI;
+    </script>
+</body>
+</html>
