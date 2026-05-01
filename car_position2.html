@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/zGwzvsWg/Gemini-Generated-Image-fqrb6yfqrb6yfqrb.png">
+    <meta name="apple-mobile-web-app-title" content="AI 車位號碼辨識系統">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>AI 車位號碼辨識系統</title>
+</head>
+<body>
+
+    <h1>AI 車位號碼辨識</h1>
+
+    <!-- 顯示結果的內容方塊 -->
+    <div id="result-box" style="border: 2px solid #000; padding: 20px; margin-bottom: 10px; min-height: 50px; font-size: 24px; font-weight: bold; color: blue;">
+        等待辨識車位號碼...
+    </div>
+
+    <!-- 樓層選擇按鈕 -->
+    <div style="margin-bottom: 15px;">
+        <span>選擇樓層：</span>
+        <button class="floor-btn" onclick="selectFloor('B1')" style="padding: 10px; cursor: pointer; background-color: #ddd; border: 1px solid #999;">B1</button>
+        <button class="floor-btn" onclick="selectFloor('B2')" style="padding: 10px; cursor: pointer; background-color: #ddd; border: 1px solid #999;">B2</button>
+        <button class="floor-btn" onclick="selectFloor('B3')" style="padding: 10px; cursor: pointer; background-color: #ddd; border: 1px solid #999;">B3</button>
+        <span id="current-floor-display" style="margin-left: 10px; font-weight: bold; color: red;">未選擇樓層</span>
+    </div>
+
+    <!-- 拍照按鈕 -->
+    <button id="capture-btn" style="padding: 15px 30px; font-size: 20px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 5px;">
+        拍照並辨識車位號
+    </button>
+
+    <hr>
+
+    <!-- 實時預覽畫面 - 320x240 -->
+    <video id="video" width="320" height="240" autoplay playsinline style="max-width: 100%; height: auto; border: 1px solid #ccc;"></video>
+    
+    <!-- 記錄日誌區塊 -->
+    <div style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>識別記錄日誌</h3>
+            <div>
+                <!-- 調整字體顏色為紅色，並加粗 -->
+                <button id="load-storage" style="padding: 5px 10px; cursor: pointer; color: red; font-weight: bold;">載入儲存紀錄</button>
+                <button id="clear-log" style="padding: 5px 10px; cursor: pointer;">清除日誌與快取</button>
+            </div>
+        </div>
+        <div id="log-container" style="border: 1px solid #999; height: 200px; overflow-y: auto; background-color: #f9f9f9; padding: 10px; font-family: monospace;">
+            <div style="color: #888;">尚未有辨識記錄...</div>
+        </div>
+    </div>
+
+    <!-- 用於截取圖片的隱藏畫布 - 320x240 -->
+    <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('capture-btn');
+        const resultBox = document.getElementById('result-box');
+        const logContainer = document.getElementById('log-container');
+        const clearLogBtn = document.getElementById('clear-log');
+        const loadStorageBtn = document.getElementById('load-storage');
+        const floorDisplay = document.getElementById('current-floor-display');
+        
+        const apiKey = ""; // 執行環境會自動提供
+        let currentFloor = ""; 
+        const STORAGE_KEY = "parking_recognition_logs";
+
+        // 樓層選擇邏輯
+        window.selectFloor = function(floor) {
+            currentFloor = floor;
+            floorDisplay.innerText = "目前樓層: " + floor;
+            const buttons = document.querySelectorAll('.floor-btn');
+            buttons.forEach(btn => {
+                if (btn.innerText === floor) {
+                    btn.style.backgroundColor = "#4CAF50";
+                    btn.style.color = "white";
+                } else {
+                    btn.style.backgroundColor = "#ddd";
+                    btn.style.color = "black";
+                }
+            });
+        };
+
+        // 1. 初始化相機
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 320 },
+                        height: { ideal: 240 }
+                    }, 
+                    audio: false 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                resultBox.innerText = "無法開啟相機: " + err.message;
+            }
+        }
+
+        // 新增記錄到日誌並存儲
+        function addLog(message, saveToStorage = true) {
+            const now = new Date();
+            const timeStr = now.getHours().toString().padStart(2, '0') + ":" + 
+                            now.getMinutes().toString().padStart(2, '0') + ":" + 
+                            now.getSeconds().toString().padStart(2, '0');
+            
+            if (logContainer.querySelector('div[style*="color: #888"]')) {
+                logContainer.innerHTML = '';
+            }
+
+            const logEntry = document.createElement('div');
+            logEntry.style.borderBottom = "1px dotted #ccc";
+            logEntry.style.padding = "4px 0";
+            logEntry.innerHTML = `<span style="color: #666;">[${timeStr}]</span> ${message}`;
+            
+            logContainer.insertBefore(logEntry, logContainer.firstChild);
+
+            // 儲存到 localStorage
+            if (saveToStorage) {
+                const logs = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+                logs.push({ time: timeStr, content: message });
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+            }
+        }
+
+        // 從 localStorage 載入記錄
+        function loadFromStorage() {
+            const logs = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+            if (logs.length === 0) {
+                addLog('<span style="color: orange;">本機儲存空間中無歷史記錄。</span>', false);
+                return;
+            }
+            logContainer.innerHTML = ''; // 清空當前顯示
+            logs.reverse().forEach(log => {
+                const logEntry = document.createElement('div');
+                logEntry.style.borderBottom = "1px dotted #ccc";
+                logEntry.style.padding = "4px 0";
+                logEntry.innerHTML = `<span style="color: #666;">[${log.time}]</span> ${log.content}`;
+                logContainer.appendChild(logEntry);
+            });
+            addLog('<span style="color: green;">歷史記錄載入成功。</span>', false);
+        }
+
+        // 2. 呼叫 Gemini API 進行圖片轉文字 (OCR)
+        async function recognizeParkingSpace(base64Image) {
+            resultBox.innerText = "正在分析車位號碼...";
+            const prompt = "請識別這張圖片中顯示的停車位編號（車位號碼）。請只輸出號碼本身，不要包含任何標點符號或其他說明文字。如果找不到號碼，請回傳『未發現號碼』。";
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inlineData: { mimeType: "image/png", data: base64Image } }
+                    ]
+                }]
+            };
+
+            let retries = 5;
+            let delay = 1000;
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error('API 服務目前不可用');
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (text) {
+                        const finalResult = text.trim();
+                        const floorPrefix = currentFloor ? `[${currentFloor}] ` : "";
+                        resultBox.innerText = "車位號碼: " + finalResult;
+                        addLog(`辨識成功: ${floorPrefix}<strong>${finalResult}</strong>`);
+                        return;
+                    } else {
+                        throw new Error('無法識別內容');
+                    }
+                } catch (err) {
+                    if (i === retries - 1) {
+                        const errorMsg = "辨識失敗: " + err.message;
+                        resultBox.innerText = errorMsg;
+                        addLog(`<span style="color: red;">${errorMsg}</span>`, false);
+                    } else {
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                    }
+                }
+            }
+        }
+
+        // 3. 拍照按鈕事件
+        captureBtn.addEventListener('click', () => {
+            if (!currentFloor) {
+                const msg = "請先選擇樓層 (B1/B2/B3)";
+                resultBox.innerText = msg;
+                addLog(`<span style="color: orange;">${msg}</span>`, false);
+                return;
+            }
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, 320, 240);
+            const imageData = canvas.toDataURL('image/png').split(',')[1];
+            addLog(`開始拍照辨識 (樓層: ${currentFloor})...`, false);
+            recognizeParkingSpace(imageData);
+        });
+
+        // 載入儲存紀錄
+        loadStorageBtn.addEventListener('click', loadFromStorage);
+
+        // 清除日誌事件
+        clearLogBtn.addEventListener('click', () => {
+            if (confirm("確定要清除所有日誌與儲存在本機的紀錄嗎？")) {
+                localStorage.removeItem(STORAGE_KEY);
+                logContainer.innerHTML = '<div style="color: #888;">尚未有辨識記錄...</div>';
+                resultBox.innerText = "已清除記錄";
+            }
+        });
+
+        window.onload = initCamera;
+    </script>
+</body>
+</html>
