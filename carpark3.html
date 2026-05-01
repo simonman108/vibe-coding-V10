@@ -1,0 +1,187 @@
+<!-- 關鍵修改位置標註版 -->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 【修改位置 1：App 名稱與圖示】 -->
+    <!-- 修改此處可以更改手機桌面圖示與瀏覽器標籤標題 -->
+    <title>望善樓停車場泊車記錄</title>
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/zGwzvsWg/Gemini-Generated-Image-fqrb6yfqrb6yfqrb.png">
+    <meta name="apple-mobile-web-app-title" content="停車場">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1e293b">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            /* 【修改位置 2：背景顏色】 */
+            /* 這裡控制了背景的深藍色漸層，可修改 HEX 色碼（如 #0f172a） */
+            background: #0f172a;
+            background: radial-gradient(circle at top left, #1e293b 0%, #0f172a 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 背景裝飾圓形（光暈效果） */
+        .bg-blob {
+            position: fixed;
+            width: 300px;
+            height: 300px;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.4;
+            border-radius: 50%;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* 樓層專屬顏色與動畫 */
+        .floor-btn {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* 【修改位置 3：樓層按鈕顏色】 */
+        /* 若要增加樓層或更改樓層顏色，修改此處的 background linear-gradient */
+        /* B1 - 活力藍 */
+        #btn-B1.active { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; transform: scale(1.05); box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.4); border-color: transparent; }
+        /* B2 - 翠綠色 */
+        #btn-B2.active { background: linear-gradient(135deg, #10b981 0%, #047857 100%); color: white; transform: scale(1.05); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.4); border-color: transparent; }
+        /* B3 - 幻彩紫 */
+        #btn-B3.active { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; transform: scale(1.05); box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.4); border-color: transparent; }
+
+        .save-btn { background: #1e293b; transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .save-btn:hover { background: #334155; box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+        .input-field:focus { border-color: #3b82f6; background: white; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-up { animation: slideUp 0.6s ease-out forwards; }
+    </style>
+</head>
+<body class="flex items-center justify-center p-6">
+
+    <div class="bg-blob bg-blue-600 top-[-100px] left-[-100px]"></div>
+    <div class="bg-blob bg-purple-600 bottom-[-100px] right-[-100px]"></div>
+
+    <div class="glass-card p-8 rounded-[3rem] w-full max-w-md animate-slide-up">
+        
+        <!-- 頂部標題文字修改 -->
+        <div class="text-center mb-10">
+            <h1 class="text-3xl font-black text-gray-900 tracking-tight">停車場</h1>
+            <div class="h-1 w-12 bg-blue-500 mx-auto mt-2 rounded-full"></div>
+            <p class="text-gray-500 mt-3 font-medium">記錄今日泊車位置</p>
+        </div>
+
+        <!-- 【修改位置 4：樓層列表與名稱】 -->
+        <!-- 如果停車場有 B4、B5，可以在這裡複製按鈕，並記得修改 ID 和 selectFloor('名稱') -->
+        <div class="space-y-4 mb-10">
+            <div class="flex justify-between items-center px-1">
+                <p class="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">選擇泊車樓層</p>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+                <button onclick="selectFloor('B1')" id="btn-B1" class="floor-btn py-6 text-2xl font-black rounded-[2rem] border-2 border-gray-100 bg-gray-50 text-gray-400">B1</button>
+                <button onclick="selectFloor('B2')" id="btn-B2" class="floor-btn py-6 text-2xl font-black rounded-[2rem] border-2 border-gray-100 bg-gray-50 text-gray-400">B2</button>
+                <button onclick="selectFloor('B3')" id="btn-B3" class="floor-btn py-6 text-2xl font-black rounded-[2rem] border-2 border-gray-100 bg-gray-50 text-gray-400">B3</button>
+            </div>
+        </div>
+
+        <!-- 備註輸入 -->
+        <div class="mb-10">
+            <div class="flex justify-between items-center px-1 mb-3">
+                <p class="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">輸入車位編號</p>
+            </div>
+            <input type="text" id="parking-slot" placeholder="例如：A105" 
+                   class="input-field w-full p-5 rounded-2xl bg-gray-50 border-2 border-transparent focus:outline-none text-gray-800 font-bold text-lg placeholder:text-gray-300">
+        </div>
+
+        <!-- 儲存按鈕 -->
+        <button onclick="saveRecord()" class="save-btn w-full text-white py-5 rounded-[2rem] font-black text-xl shadow-2xl flex items-center justify-center gap-3">
+            <span>儲存目前位置</span>
+        </button>
+
+        <!-- 狀態卡片 -->
+        <div id="status-message" class="mt-8 p-5 bg-blue-50 rounded-3xl hidden animate-slide-up">
+            <div class="flex items-center gap-4">
+                <div class="bg-blue-500 p-2 rounded-xl shadow-lg shadow-blue-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-blue-400 uppercase tracking-wider">上次更新時間</p>
+                    <p id="last-saved-time" class="text-blue-900 font-bold text-sm">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-10 py-5 rounded-full shadow-2xl opacity-0 transition-all duration-500 pointer-events-none z-50 flex items-center gap-3">
+        <div class="w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
+        <span id="toast-text" class="font-bold tracking-wide text-sm"></span>
+    </div>
+
+    <script>
+        // 【修改位置 5：數據存儲 key】
+        // 如果你有第二個停車場 App，記得修改 localStorage 的名稱，否則數據會混在一起
+        const STORAGE_KEY = 'wang_sin_parking_v3';
+
+        let currentFloor = null;
+
+        window.onload = function() {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                selectFloor(data.floor);
+                document.getElementById('parking-slot').value = data.slot || '';
+                updateStatusDisplay(data.timestamp);
+            }
+        };
+
+        function selectFloor(floor) {
+            currentFloor = floor;
+            document.querySelectorAll('.floor-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const target = document.getElementById(`btn-${floor}`);
+            if(target) target.classList.add('active');
+        }
+
+        function saveRecord() {
+            if (!currentFloor) {
+                showToast('請先選擇一個樓層！');
+                return;
+            }
+            const slot = document.getElementById('parking-slot').value;
+            const now = new Date();
+            const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} (${now.getMonth()+1}/${now.getDate()})`;
+            const parkingData = { floor: currentFloor, slot: slot, timestamp: timeString };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parkingData));
+            updateStatusDisplay(timeString);
+            showToast('位置已成功記錄 ✨');
+        }
+
+        function updateStatusDisplay(time) {
+            const statusDiv = document.getElementById('status-message');
+            const timeSpan = document.getElementById('last-saved-time');
+            statusDiv.classList.remove('hidden');
+            timeSpan.innerText = time;
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const text = document.getElementById('toast-text');
+            text.innerText = message;
+            toast.style.bottom = '40px';
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.bottom = '20px'; toast.style.opacity = '0'; }, 3000);
+        }
+    </script>
+</body>
+</html>
