@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拼圖遊戲 - 堅持的意義 (一分鐘限時)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f8fafc;
+            --danger: #ef4444;
+        }
+        body {
+            background-color: var(--bg);
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+        }
+        .puzzle-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0;
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 3 / 2;
+            margin: 0 auto;
+            background: #e2e8f0;
+            padding: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid #cbd5e1;
+        }
+        .puzzle-piece {
+            background-image: url('https://i.postimg.cc/0QHVBbrp/single-image-jian-chi-de-yi-yi-JC-3000-x-3000.jpg');
+            background-size: 300% 200%;
+            cursor: pointer;
+            transition: filter 0.2s ease;
+            border: 0.5px solid rgba(255, 255, 255, 0.1);
+            touch-action: none;
+            position: relative;
+        }
+        .puzzle-piece:hover:not(.empty) {
+            filter: brightness(1.1);
+            z-index: 2;
+        }
+        .puzzle-piece.empty {
+            background-image: none !important;
+            background-color: #cbd5e1;
+            cursor: default;
+        }
+        .message-box {
+            display: none;
+            animation: slideDown 0.5s ease-out;
+        }
+        .message-box.show {
+            display: block;
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .timer-warning {
+            color: var(--danger) !important;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">拼圖遊戲：一分鐘限時</h1>
+        <p class="text-gray-600 font-medium">在 60 秒內完成挑戰！</p>
+    </div>
+
+    <div class="flex flex-wrap gap-4 mb-6 items-center justify-center">
+        <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200">
+            <span class="text-gray-500 text-sm">步數：</span>
+            <span id="moves" class="font-mono font-bold text-indigo-600">0</span>
+        </div>
+        <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200">
+            <span class="text-gray-500 text-sm">剩餘時間：</span>
+            <span id="timer" class="font-mono font-bold text-indigo-600">01:00</span>
+        </div>
+        <button id="resetBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold transition-all shadow-md active:transform active:scale-95">
+            重新開始
+        </button>
+    </div>
+
+    <!-- 狀態訊息 -->
+    <div id="successMsg" class="message-box mb-6 bg-green-500 text-white px-8 py-4 rounded-2xl text-center shadow-lg">
+        <p class="font-bold text-xl">太棒了！挑戰成功！🎉</p>
+        <p id="finalScore" class="text-sm mt-1"></p>
+    </div>
+
+    <div id="failMsg" class="message-box mb-6 bg-red-500 text-white px-8 py-4 rounded-2xl text-center shadow-lg">
+        <p class="font-bold text-xl">時間到！挑戰失敗 ⏰</p>
+        <p class="text-sm mt-1">別灰心，再試一次吧！</p>
+    </div>
+
+    <div id="board" class="puzzle-board">
+        <!-- JS 動態生成拼圖 -->
+    </div>
+
+    <div class="mt-8 flex flex-col items-center gap-2">
+        <div class="text-xs text-gray-400 uppercase tracking-widest font-bold">目標圖示</div>
+        <img src="https://i.postimg.cc/0QHVBbrp/single-image-jian-chi-de-yi-yi-JC-3000-x-3000.jpg" class="w-32 h-auto object-cover rounded border border-gray-300 opacity-60">
+    </div>
+
+    <script>
+        const board = document.getElementById('board');
+        const movesEl = document.getElementById('moves');
+        const timerEl = document.getElementById('timer');
+        const resetBtn = document.getElementById('resetBtn');
+        const successMsg = document.getElementById('successMsg');
+        const failMsg = document.getElementById('failMsg');
+        const finalScoreEl = document.getElementById('finalScore');
+
+        const TIME_LIMIT = 60; // 60秒限時
+        let moves = 0;
+        let timeLeft = TIME_LIMIT;
+        let timerInterval = null;
+        let isGameOver = false;
+
+        const COLS = 3;
+        const ROWS = 2;
+        const TOTAL = COLS * ROWS;
+        const EMPTY_INDEX = TOTAL - 1; 
+
+        let currentState = [];
+
+        function initGame() {
+            stopTimer();
+            timeLeft = TIME_LIMIT;
+            moves = 0;
+            isGameOver = false;
+            updateStats();
+            
+            successMsg.classList.remove('show');
+            failMsg.classList.remove('show');
+            timerEl.classList.remove('timer-warning');
+            
+            currentState = Array.from({length: TOTAL}, (_, i) => i);
+            shuffle();
+            renderBoard();
+            startTimer();
+        }
+
+        function shuffle() {
+            let shuffleMoves = 0;
+            while (shuffleMoves < 150) {
+                const emptyPos = currentState.indexOf(EMPTY_INDEX);
+                const neighbors = getNeighbors(emptyPos);
+                const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+                [currentState[emptyPos], currentState[randomNeighbor]] = [currentState[randomNeighbor], currentState[emptyPos]];
+                shuffleMoves++;
+            }
+            if (isSolved()) shuffle();
+        }
+
+        function getNeighbors(index) {
+            const neighbors = [];
+            const r = Math.floor(index / COLS);
+            const c = index % COLS;
+            if (r > 0) neighbors.push(index - COLS);
+            if (r < ROWS - 1) neighbors.push(index + COLS);
+            if (c > 0) neighbors.push(index - 1);
+            if (c < COLS - 1) neighbors.push(index + 1);
+            return neighbors;
+        }
+
+        function renderBoard() {
+            board.innerHTML = '';
+            currentState.forEach((val, i) => {
+                const piece = document.createElement('div');
+                piece.className = 'puzzle-piece';
+                
+                if (val === EMPTY_INDEX) {
+                    piece.classList.add('empty');
+                } else {
+                    const origX = (val % COLS) * 50; 
+                    const origY = Math.floor(val / COLS) * 100;
+                    piece.style.backgroundPosition = `${origX}% ${origY}%`;
+                }
+                
+                piece.onclick = () => movePiece(i);
+                board.appendChild(piece);
+            });
+        }
+
+        function movePiece(index) {
+            if (isGameOver) return;
+            const emptyPos = currentState.indexOf(EMPTY_INDEX);
+            const neighbors = getNeighbors(index);
+
+            if (neighbors.includes(emptyPos)) {
+                [currentState[index], currentState[emptyPos]] = [currentState[emptyPos], currentState[index]];
+                moves++;
+                updateStats();
+                renderBoard();
+                checkWin();
+            }
+        }
+
+        function isSolved() {
+            return currentState.every((val, i) => val === i);
+        }
+
+        function checkWin() {
+            if (isSolved()) {
+                isGameOver = true;
+                stopTimer();
+                finalScoreEl.innerText = `剩餘時間 ${timeLeft} 秒，總共走了 ${moves} 步。`;
+                successMsg.classList.add('show');
+                
+                // 補全圖片
+                const emptyNode = document.querySelector('.empty');
+                if (emptyNode) {
+                    const val = EMPTY_INDEX;
+                    const origX = (val % COLS) * 50;
+                    const origY = Math.floor(val / COLS) * 100;
+                    emptyNode.style.backgroundImage = "url('https://i.postimg.cc/0QHVBbrp/single-image-jian-chi-de-yi-yi-JC-3000-x-3000.jpg')";
+                    emptyNode.style.backgroundPosition = `${origX}% ${origY}%`;
+                    emptyNode.classList.remove('empty');
+                }
+            }
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 10) {
+                    timerEl.classList.add('timer-warning');
+                }
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    handleTimeout();
+                }
+                updateStats();
+            }, 1000);
+        }
+
+        function handleTimeout() {
+            isGameOver = true;
+            stopTimer();
+            failMsg.classList.add('show');
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function updateStats() {
+            movesEl.innerText = moves;
+            const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const secs = (timeLeft % 60).toString().padStart(2, '0');
+            timerEl.innerText = `${mins}:${secs}`;
+        }
+
+        resetBtn.addEventListener('click', initGame);
+        window.onload = initGame;
+    </script>
+</body>
+</html>
