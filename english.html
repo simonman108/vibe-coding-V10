@@ -1,0 +1,199 @@
+import React, { useState, useEffect } from 'react';
+import { Trophy, RefreshCw, ChevronRight, CheckCircle2, XCircle, BookOpen, Star, GraduationCap } from 'lucide-react';
+
+const QUESTIONS_DATABASE = {
+  easy: [
+    { word: "Airport", options: ["火車站", "機場", "碼頭", "客運站"], correct: 1, sentence: "We arrived at the airport two hours before our flight." },
+    { word: "Calendar", options: ["計算機", "照相機", "日曆", "筆記本"], correct: 2, sentence: "Mark the date on your calendar so you don't forget." },
+    { word: "Furniture", options: ["家具", "餐具", "文具", "玩具"], correct: 0, sentence: "We bought some new furniture for our living room." },
+    { word: "Mirror", options: ["窗戶", "鏡子", "牆壁", "地板"], correct: 1, sentence: "She looked at herself in the mirror." },
+    { word: "Stairs", options: ["電梯", "走廊", "樓梯", "門口"], correct: 2, sentence: "I walked up the stairs because the elevator was broken." },
+    { word: "Ticket", options: ["收據", "罰單", "票券", "名片"], correct: 2, sentence: "Do you have your concert ticket ready?" },
+    { word: "Wallet", options: ["背包", "皮夾", "口袋", "手提包"], correct: 1, sentence: "I forgot my wallet, so I can't pay for lunch." },
+    { word: "Neighbor", options: ["同事", "鄰居", "親戚", "室友"], correct: 1, sentence: "Our neighbor is very friendly and often helps us." },
+    { word: "Stationery", options: ["體育用品", "廚房用品", "文具", "電器"], correct: 2, sentence: "I need to buy some stationery for the new school term." },
+    { word: "Blanket", options: ["枕頭", "床單", "毯子", "窗簾"], correct: 2, sentence: "It's cold tonight, so I need an extra blanket." }
+  ],
+  medium: [
+    { word: "Deadline", options: ["起點", "終點", "截止日期", "死巷"], correct: 2, sentence: "The deadline for the project is this Friday." },
+    { word: "Vitamin", options: ["蛋白質", "維生素", "礦物質", "脂肪"], correct: 1, sentence: "Eating fruit is a great way to get your daily vitamins." },
+    { word: "Notification", options: ["通知", "筆記", "合約", "廣告"], correct: 0, sentence: "I just got a notification on my phone." },
+    { word: "Atmosphere", options: ["氣壓", "氣氛", "高度", "溫度"], correct: 1, sentence: "The restaurant has a very romantic atmosphere." },
+    { word: "Destination", options: ["出發地", "目的地", "中繼站", "里程數"], correct: 1, sentence: "After a long journey, we finally reached our destination." },
+    { word: "Interview", options: ["演講", "面試/採訪", "介紹", "辯論"], correct: 1, sentence: "I have a job interview tomorrow morning." },
+    { word: "Investment", options: ["邀請", "發明", "投資", "調查"], correct: 2, sentence: "Buying property is usually a good long-term investment." },
+    { word: "Maintenance", options: ["維修保養", "操作", "建造", "破壞"], correct: 0, sentence: "Regular maintenance will keep your car running well." },
+    { word: "Signature", options: ["標誌", "景象", "簽名", "信號"], correct: 2, sentence: "Please provide your signature on this document." },
+    { word: "Appliance", options: ["零件", "應用", "家電", "工具"], correct: 2, sentence: "Modern appliances make housework much easier." }
+  ],
+  hard: [
+    { word: "Procrastinate", options: ["提前", "推遲/拖延", "預言", "抗議"], correct: 1, sentence: "Don't procrastinate; start your assignment today!" },
+    { word: "Versatile", options: ["多功能的", "脆弱的", "垂直的", "昂貴的"], correct: 0, sentence: "This smartphone is a versatile tool for work and play." },
+    { word: "Negotiate", options: ["忽略", "談判", "導航", "觀察"], correct: 1, sentence: "We need to negotiate a better price for the contract." },
+    { word: "Enthusiastic", options: ["尷尬的", "熱情的", "同情的", "懷疑的"], correct: 1, sentence: "The audience was very enthusiastic about the performance." },
+    { word: "Consequence", options: ["原因", "後果", "自信", "一致"], correct: 1, sentence: "You must be prepared to face the consequences of your actions." },
+    { word: "Simultaneous", options: ["類似的", "同步的/同時的", "刺激的", "自發的"], correct: 1, sentence: "The movie will have a simultaneous release in 50 countries." },
+    { word: "Infrastructure", options: ["基礎建設", "內部結構", "建築物", "說明書"], correct: 0, sentence: "The government is investing in the city's infrastructure." },
+    { word: "Acknowledge", options: ["累積", "獲取", "承認/告知收到", "陪伴"], correct: 2, sentence: "Please acknowledge receipt of this email." },
+    { word: "Ambiguous", options: ["有野心的", "模稜兩可的", "古老的", "豐富的"], correct: 1, sentence: "His answer was ambiguous, so I wasn't sure what he meant." },
+    { word: "Implementation", options: ["實施/執行", "想像", "暗示", "影響"], correct: 0, sentence: "The implementation of the new policy will begin next month." }
+  ]
+};
+
+export default function App() {
+  const [level, setLevel] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [isFinished, setIsFinished] = useState(false);
+
+  const questions = level ? QUESTIONS_DATABASE[level] : [];
+  const currentQuestion = questions[currentIndex];
+
+  const handleLevelSelect = (lvl) => {
+    setLevel(lvl);
+    setCurrentIndex(0);
+    setScore(0);
+    setSelectedAnswer(null);
+    setShowResult(false);
+    setIsFinished(false);
+  };
+
+  const handleAnswer = (index) => {
+    if (selectedAnswer !== null) return;
+    setSelectedAnswer(index);
+    if (index === currentQuestion.correct) {
+      setScore(score + 1);
+    }
+    setShowResult(true);
+  };
+
+  const nextQuestion = () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setSelectedAnswer(null);
+      setShowResult(false);
+    } else {
+      setIsFinished(true);
+    }
+  };
+
+  const restart = () => {
+    setLevel(null);
+    setIsFinished(false);
+  };
+
+  if (!level) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center border border-slate-100">
+          <div className="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-200">
+            <GraduationCap className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">新版單詞挑戰</h1>
+          <p className="text-slate-500 mb-8 font-medium">詞庫已更新！選擇難度開始吧</p>
+          
+          <div className="space-y-4">
+            {['easy', 'medium', 'hard'].map((l) => (
+              <button 
+                key={l}
+                onClick={() => handleLevelSelect(l)}
+                className={`w-full flex items-center justify-between p-5 bg-white border-2 rounded-2xl transition-all group
+                  ${l === 'easy' ? 'border-emerald-100 hover:border-emerald-400 hover:bg-emerald-50' : 
+                    l === 'medium' ? 'border-sky-100 hover:border-sky-400 hover:bg-sky-50' : 
+                    'border-rose-100 hover:border-rose-400 hover:bg-rose-50'}`}
+              >
+                <div className="flex items-center gap-4 text-left">
+                  <div className={`p-3 rounded-xl ${l === 'easy' ? 'bg-emerald-100 text-emerald-600' : l === 'medium' ? 'bg-sky-100 text-sky-600' : 'bg-rose-100 text-rose-600'}`}>
+                    {l === 'easy' ? <Star className="w-6 h-6 fill-current" /> : l === 'medium' ? <div className="relative"><Star className="w-6 h-6 fill-current" /><Star className="w-3 h-3 fill-current absolute -top-1 -right-1" /></div> : <Trophy className="w-6 h-6" />}
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-800">{l === 'easy' ? '初階 (Airport, Mirror...)' : l === 'medium' ? '中階 (Deadline, Interview...)' : '高階 (Negotiate, Ambiguous...)'}</div>
+                    <div className="text-xs text-slate-500 uppercase font-black">{l} mode</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-300" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isFinished) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center">
+          <Trophy className="w-20 h-20 text-yellow-400 mx-auto mb-6 drop-shadow-md" />
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">挑戰完成！</h1>
+          <p className="text-slate-500 mb-6 font-medium uppercase tracking-widest text-sm">Level: {level}</p>
+          <div className="bg-slate-50 rounded-2xl p-8 mb-8 border border-slate-100">
+            <span className="text-6xl font-black text-indigo-600">{score}</span>
+            <span className="text-2xl text-slate-400 font-bold"> / {questions.length}</span>
+            <div className="mt-4 text-sm font-semibold text-slate-400">正確率: {Math.round((score/questions.length)*100)}%</div>
+          </div>
+          <button onClick={restart} className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl transition-all">
+            <RefreshCw className="w-5 h-5" /> 返回主單單
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
+        <div className="h-2 bg-slate-100">
+          <div className={`h-full transition-all duration-500 ${level === 'easy' ? 'bg-emerald-500' : level === 'medium' ? 'bg-sky-500' : 'bg-rose-500'}`} style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}></div>
+        </div>
+
+        <div className="p-8">
+          <div className="flex justify-between items-center mb-8">
+            <button onClick={restart} className="text-slate-400 hover:text-slate-600 transition-colors"><RefreshCw className="w-5 h-5" /></button>
+            <span className={`px-3 py-1 text-xs font-black rounded-full uppercase tracking-tighter ${level === 'easy' ? 'bg-emerald-100 text-emerald-700' : level === 'medium' ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>{level}</span>
+            <span className="text-slate-800 font-bold">{currentIndex + 1}/{questions.length}</span>
+          </div>
+
+          <div className="mb-10 text-center">
+            <h2 className="text-xs text-slate-300 uppercase tracking-[0.2em] mb-4 font-black">Vocabulary Challenge</h2>
+            <div className="text-5xl font-black text-slate-800 tracking-tight leading-tight px-2">{currentQuestion.word}</div>
+          </div>
+
+          <div className="space-y-3 mb-8">
+            {currentQuestion.options.map((option, idx) => (
+              <button
+                key={idx}
+                disabled={selectedAnswer !== null}
+                onClick={() => handleAnswer(idx)}
+                className={`w-full p-5 text-left rounded-2xl border-2 transition-all duration-200 flex justify-between items-center group
+                  ${selectedAnswer === null ? 'border-slate-100 hover:border-indigo-300 hover:bg-slate-50' : idx === currentQuestion.correct ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : selectedAnswer === idx ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-slate-50 text-slate-400'}
+                `}
+              >
+                <span className="font-bold text-lg">{option}</span>
+                {selectedAnswer !== null && idx === currentQuestion.correct && <CheckCircle2 className="w-6 h-6 text-emerald-500" />}
+                {selectedAnswer === idx && idx !== currentQuestion.correct && <XCircle className="w-6 h-6 text-rose-500" />}
+              </button>
+            ))}
+          </div>
+
+          {showResult && (
+            <div className="bg-slate-900 rounded-2xl p-6 mb-2 animate-in fade-in zoom-in-95 duration-300 shadow-xl">
+              <div className="flex items-start gap-4 text-white">
+                <div className="bg-indigo-500/20 p-2 rounded-lg"><BookOpen className="w-5 h-5 text-indigo-400" /></div>
+                <div>
+                  <p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-1">Example Usage</p>
+                  <p className="text-lg font-medium leading-snug italic">"{currentQuestion.sentence}"</p>
+                </div>
+              </div>
+              <button onClick={nextQuestion} className="w-full mt-6 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-xl transition-all shadow-lg shadow-indigo-900/20">
+                {currentIndex < questions.length - 1 ? '下一題 NEXT' : '查看結果 RESULT'} <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
