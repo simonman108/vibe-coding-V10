@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>德育主題拼圖遊戲 - 隨機挑戰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f1f5f9;
+            --danger: #ef4444;
+        }
+        body {
+            background-color: var(--bg);
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+        }
+        /* 主要佈局 */
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            gap: 2.5rem;
+            max-width: 1200px;
+            width: 100%;
+            padding: 20px;
+            align-items: flex-start;
+        }
+        /* 拼圖板 */
+        .puzzle-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0;
+            width: 100%;
+            max-width: 650px; 
+            aspect-ratio: 3 / 2;
+            background: #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.15);
+            border: 1px solid #cbd5e1;
+        }
+        .puzzle-piece {
+            background-size: 300% 200%;
+            cursor: pointer;
+            transition: filter 0.2s ease;
+            border: 0.5px solid rgba(255, 255, 255, 0.15);
+            touch-action: none;
+            position: relative;
+        }
+        .puzzle-piece:hover:not(.empty) {
+            filter: brightness(1.1);
+            z-index: 2;
+        }
+        .puzzle-piece.empty {
+            background-image: none !important;
+            background-color: #cbd5e1;
+            cursor: default;
+        }
+        .message-box {
+            display: none;
+            animation: slideDown 0.5s ease-out;
+        }
+        .message-box.show {
+            display: block;
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .timer-warning {
+            color: var(--danger) !important;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0.5; }
+        }
+        /* 手機適應 */
+        @media (max-width: 900px) {
+            .main-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .puzzle-board {
+                max-width: 90vw;
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen">
+
+    <div class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-gray-800 mb-2">德育主題拼圖遊戲</h1>
+        <p class="text-gray-600">一分鐘挑戰：每次開始都會隨機更換德育圖片</p>
+    </div>
+
+    <div class="main-container">
+        <!-- 左側：遊戲操作區 -->
+        <div class="flex-1 flex flex-col items-center order-2 md:order-1">
+            <!-- 狀態訊息 -->
+            <div id="successMsg" class="message-box mb-4 bg-green-500 text-white px-6 py-3 rounded-xl text-center shadow-md w-full">
+                <p class="font-bold">挑戰成功！🎉</p>
+                <p id="finalScore" class="text-xs"></p>
+            </div>
+
+            <div id="failMsg" class="message-box mb-4 bg-red-500 text-white px-6 py-3 rounded-xl text-center shadow-md w-full">
+                <p class="font-bold">時間到！挑戰失敗 ⏰</p>
+            </div>
+
+            <div id="board" class="puzzle-board">
+                <!-- JS 動態生成拼圖 -->
+            </div>
+
+            <button id="resetBtn" class="mt-8 w-full max-w-[250px] bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-lg active:transform active:scale-95">
+                更換圖片並開始
+            </button>
+        </div>
+
+        <!-- 右側：資訊與參考區 -->
+        <div class="w-full md:w-72 flex flex-col gap-6 order-1 md:order-2">
+            
+            <!-- 步數與時間面板 -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 text-center">
+                    <p class="text-gray-500 text-xs font-bold uppercase">步數</p>
+                    <p id="moves" class="font-mono font-bold text-indigo-600 text-2xl">0</p>
+                </div>
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 text-center">
+                    <p class="text-gray-500 text-xs font-bold uppercase">剩餘時間</p>
+                    <p id="timer" class="font-mono font-bold text-indigo-600 text-2xl">01:00</p>
+                </div>
+            </div>
+
+            <!-- 目標參考圖 -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+                <div class="text-sm font-bold text-gray-700 mb-3 border-b pb-2 w-full text-center">目標參考圖</div>
+                <img id="referenceImg" src="" 
+                     alt="[目標參考圖]" 
+                     class="w-full rounded-xl shadow-sm border border-gray-100 mb-4">
+                <div class="bg-indigo-50 p-3 rounded-xl text-xs text-indigo-700 leading-relaxed border border-indigo-100">
+                    <p class="font-bold mb-1 underline">操作說明：</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>點擊與空格相鄰的方塊。</li>
+                        <li>目標在 60 秒內完成。</li>
+                        <li>右下角方塊為初始空格。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const board = document.getElementById('board');
+        const movesEl = document.getElementById('moves');
+        const timerEl = document.getElementById('timer');
+        const resetBtn = document.getElementById('resetBtn');
+        const successMsg = document.getElementById('successMsg');
+        const failMsg = document.getElementById('failMsg');
+        const finalScoreEl = document.getElementById('finalScore');
+        const referenceImg = document.getElementById('referenceImg');
+
+        // 圖片庫
+        const imagePool = [
+            'https://i.postimg.cc/766fqmP2/wei-xin-tu-pian-20260512093454-670-43.jpg',
+            'https://i.postimg.cc/7PSfwGwC/wei-xin-tu-pian-20260512093453-669-43.jpg',
+            'https://i.postimg.cc/137zJDcH/wei-xin-tu-pian-20260512093455-671-43.jpg',
+            'https://i.postimg.cc/9f4QSzLX/wei-xin-tu-pian-20260512093456-672-43.jpg'
+        ];
+
+        let currentImage = '';
+        const TIME_LIMIT = 60;
+        let moves = 0;
+        let timeLeft = TIME_LIMIT;
+        let timerInterval = null;
+        let isGameOver = false;
+
+        const COLS = 3;
+        const ROWS = 2;
+        const TOTAL = COLS * ROWS;
+        const EMPTY_INDEX = TOTAL - 1; 
+
+        let currentState = [];
+
+        function initGame() {
+            stopTimer();
+            
+            // 隨機選取一張圖片
+            const randomIndex = Math.floor(Math.random() * imagePool.length);
+            currentImage = imagePool[randomIndex];
+            referenceImg.src = currentImage; // 更新參考圖
+
+            timeLeft = TIME_LIMIT;
+            moves = 0;
+            isGameOver = false;
+            updateStats();
+            
+            successMsg.classList.remove('show');
+            failMsg.classList.remove('show');
+            timerEl.classList.remove('timer-warning');
+            
+            currentState = Array.from({length: TOTAL}, (_, i) => i);
+            shuffle();
+            renderBoard();
+            startTimer();
+        }
+
+        function shuffle() {
+            let shuffleMoves = 0;
+            while (shuffleMoves < 200) {
+                const emptyPos = currentState.indexOf(EMPTY_INDEX);
+                const neighbors = getNeighbors(emptyPos);
+                const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+                [currentState[emptyPos], currentState[randomNeighbor]] = [currentState[randomNeighbor], currentState[emptyPos]];
+                shuffleMoves++;
+            }
+            if (isSolved()) shuffle();
+        }
+
+        function getNeighbors(index) {
+            const neighbors = [];
+            const r = Math.floor(index / COLS);
+            const c = index % COLS;
+            if (r > 0) neighbors.push(index - COLS);
+            if (r < ROWS - 1) neighbors.push(index + COLS);
+            if (c > 0) neighbors.push(index - 1);
+            if (c < COLS - 1) neighbors.push(index + 1);
+            return neighbors;
+        }
+
+        function renderBoard() {
+            board.innerHTML = '';
+            currentState.forEach((val, i) => {
+                const piece = document.createElement('div');
+                piece.className = 'puzzle-piece';
+                
+                if (val === EMPTY_INDEX) {
+                    piece.classList.add('empty');
+                } else {
+                    piece.style.backgroundImage = `url('${currentImage}')`;
+                    const origX = (val % COLS) * 50; 
+                    const origY = Math.floor(val / COLS) * 100;
+                    piece.style.backgroundPosition = `${origX}% ${origY}%`;
+                }
+                
+                piece.onclick = () => movePiece(i);
+                board.appendChild(piece);
+            });
+        }
+
+        function movePiece(index) {
+            if (isGameOver) return;
+            const emptyPos = currentState.indexOf(EMPTY_INDEX);
+            const neighbors = getNeighbors(index);
+
+            if (neighbors.includes(emptyPos)) {
+                [currentState[index], currentState[emptyPos]] = [currentState[emptyPos], currentState[index]];
+                moves++;
+                updateStats();
+                renderBoard();
+                checkWin();
+            }
+        }
+
+        function isSolved() {
+            return currentState.every((val, i) => val === i);
+        }
+
+        function checkWin() {
+            if (isSolved()) {
+                isGameOver = true;
+                stopTimer();
+                finalScoreEl.innerText = `剩餘時間 ${timeLeft} 秒，共 ${moves} 步。`;
+                successMsg.classList.add('show');
+                
+                const emptyNode = document.querySelector('.empty');
+                if (emptyNode) {
+                    const val = EMPTY_INDEX;
+                    const origX = (val % COLS) * 50;
+                    const origY = Math.floor(val / COLS) * 100;
+                    emptyNode.style.backgroundImage = `url('${currentImage}')`;
+                    emptyNode.style.backgroundPosition = `${origX}% ${origY}%`;
+                    emptyNode.classList.remove('empty');
+                }
+            }
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 10) {
+                    timerEl.classList.add('timer-warning');
+                }
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    handleTimeout();
+                }
+                updateStats();
+            }, 1000);
+        }
+
+        function handleTimeout() {
+            isGameOver = true;
+            stopTimer();
+            failMsg.classList.add('show');
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function updateStats() {
+            movesEl.innerText = moves;
+            const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const secs = (timeLeft % 60).toString().padStart(2, '0');
+            timerEl.innerText = `${mins}:${secs}`;
+        }
+
+        resetBtn.addEventListener('click', initGame);
+        window.onload = initGame;
+    </script>
+</body>
+</html>
