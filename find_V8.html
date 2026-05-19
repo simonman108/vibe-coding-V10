@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中學部電腦遊戲攤位 - 超級眼力大考驗</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        :root {
+            --primary: #8b5cf6;
+            --secondary: #f59e0b;
+            --success: #10b981;
+            --bg: #fdf4ff; /* 恢復粉紫色溫馨背景 */
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: var(--bg);
+            overflow-x: hidden;
+            color: #1e293b;
+        }
+
+        .game-font {
+            font-family: 'ZCOOL KuaiLe', cursive;
+        }
+
+        /* 氣球球體樣式 - 帶有漸變與立體浮雕感 */
+        .game-ball {
+            position: absolute;
+            width: 54px;
+            height: 54px;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.5rem;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            user-select: none;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15), inset 0 -6px 10px rgba(0,0,0,0.3), inset 0 6px 10px rgba(255,255,255,0.4);
+            transition: transform 0.1s ease;
+        }
+
+        .game-ball:active {
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        /* 外層對齊貼合包裝 */
+        .game-main-layout {
+            width: 100%;
+            max-width: 1300px;
+        }
+
+        #game-container {
+            background-color: rgba(0, 0, 0, 0.03);
+            touch-action: none;
+            position: relative;
+        }
+
+        /* 畫面震動 */
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- 標題區 -->
+    <header class="text-center mb-6 mt-4">
+        <h1 class="game-font text-5xl md:text-6xl text-purple-600 mb-2 drop-shadow-lg">🎮 中學部電腦遊戲攤位</h1>
+        <p class="text-slate-500 text-lg md:text-xl font-medium">按順序點擊 1 至 15 的氣球，挑戰手速極限！</p>
+    </header>
+
+    <!-- 遊戲核心 -->
+    <main class="game-main-layout flex flex-col lg:flex-row gap-6 items-stretch justify-center">
+        
+        <!-- 左側：圖片顯示區 -->
+        <div class="w-full lg:flex-[2.5] flex items-center justify-center">
+            <div id="game-container" class="relative w-full rounded-3xl overflow-hidden shadow-2xl border-[8px] border-white transition-all duration-300">
+                <!-- 遊戲大背景圖 (寬度100%，高度依圖比例自動縮放) -->
+                <img id="game-image" src="https://i.postimg.cc/cH1q7dbt/V3.jpg" 
+                     alt="遊戲背景圖" class="w-full h-auto block select-none pointer-events-none">
+                
+                <!-- 氣球與反饋特效活動層 -->
+                <div id="targets-layer" class="absolute inset-0"></div>
+                
+                <!-- 遊戲未開始遮罩 -->
+                <div id="start-overlay" class="absolute inset-0 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center z-40 transition-opacity duration-300">
+                    <div class="bg-purple-100 border-2 border-purple-200 p-8 rounded-full shadow-2xl mb-4">
+                        <span class="text-6xl animate-bounce block">🎈</span>
+                    </div>
+                    <p class="text-slate-800 text-3xl font-black mb-2 tracking-widest text-center">超級眼力順序大考驗</p>
+                    <p class="text-purple-600 text-lg font-bold mb-6 tracking-wide">依照 1 ➔ 2 ➔ 3... ➔ 15 順序擊破氣球</p>
+                    <button id="start-btn-overlay" onclick="startGame()" class="bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 text-white text-2xl font-black px-12 py-4 rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all">
+                        立刻啟動雷達 🚀
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側：狀態與資訊區 (淺色質感面板) -->
+        <aside class="w-full lg:flex-[1] flex flex-col justify-between gap-4">
+            
+            <div class="flex flex-col gap-4">
+                <!-- 數據板 -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-white border-b-4 border-purple-200 p-4 rounded-2xl shadow-md text-center">
+                        <div class="text-slate-400 text-xs font-black uppercase tracking-wider mb-1">⏱️ 剩餘時間</div>
+                        <div class="text-4xl font-mono font-black text-purple-600"><span id="timer">15.0</span>s</div>
+                    </div>
+                    <div class="bg-white border-b-4 border-emerald-200 p-4 rounded-2xl shadow-md text-center">
+                        <div class="text-slate-400 text-xs font-black uppercase tracking-wider mb-1">🎯 當前目標</div>
+                        <div class="text-4xl font-mono font-black text-emerald-500"><span id="next-target">-</span></div>
+                    </div>
+                </div>
+
+                <!-- 擊破計數與最新狀態 -->
+                <div class="bg-white border-b-4 border-amber-200 p-4 rounded-2xl shadow-md flex justify-between items-center px-6">
+                    <span class="text-slate-600 font-bold">🎈 已擊破氣球:</span>
+                    <span class="text-3xl font-black text-amber-500 font-mono"><span id="score">0</span> / 15</span>
+                </div>
+
+                <!-- 獎項階梯說明卡 -->
+                <div class="bg-yellow-50/80 border-4 border-yellow-200 p-6 rounded-3xl shadow-xl">
+                    <h2 class="text-lg font-black text-yellow-800 mb-3 flex items-center">
+                        <span class="mr-2">🎁</span> 攤位獎品階梯
+                    </h2>
+                    <ul class="space-y-3 text-sm text-yellow-900">
+                        <li class="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                            <span class="flex items-center gap-2"><span class="text-xl">🏆</span> <b>大獎</b></span>
+                            <span class="font-bold text-emerald-600">15 個全中！</span>
+                        </li>
+                        <li class="flex items-center justify-between p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                            <span class="flex items-center gap-2"><span class="text-xl">🥈</span> <b>中獎</b></span>
+                            <span class="font-bold text-amber-600">11 ~ 14 個</span>
+                        </li>
+                        <li class="flex items-center justify-between p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                            <span class="flex items-center gap-2"><span class="text-xl">🥉</span> <b>細獎</b></span>
+                            <span class="font-bold text-indigo-600">1 ~ 10 個</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 控制與提示 -->
+            <div class="flex flex-col gap-2 mt-auto">
+                <div class="text-center text-rose-500 text-sm font-bold bg-rose-50 border border-rose-100 p-4 rounded-2xl shadow-sm">
+                    ⚠️ 注意：點錯球或點擊背景，將重罰扣除 1.5 秒！
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- 結算彈窗 -->
+    <div id="win-modal" class="fixed inset-0 bg-slate-950/80 hidden flex items-center justify-center z-50 p-6 backdrop-blur-md">
+        <div class="bg-white border-t-[12px] border-purple-500 rounded-[3rem] p-10 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 animate-pulse"></div>
+            
+            <div id="prize-emoji" class="text-8xl mb-4 animate-bounce">🏆</div>
+            <h2 id="prize-title" class="text-4xl font-black text-purple-600 mb-2 game-font">超級大獎！</h2>
+            <p id="prize-desc" class="text-slate-500 font-medium mb-4">實力非凡！完美的眼力考驗！</p>
+            
+            <div class="bg-slate-50 rounded-2xl py-4 px-6 my-6 border border-slate-100">
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">最終擊破數量</p>
+                <p class="text-5xl font-mono font-black text-amber-500"><span id="final-score">0</span> / 15</p>
+            </div>
+
+            <button onclick="resetGame()" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xl font-bold py-4 rounded-2xl hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg active:scale-95">
+                返回攤位重玩 🔄
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ------------------ Web Audio API 音效合成器 ------------------
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'hit') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            } else if (type === 'error') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(60, audioCtx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'victory') {
+                const now = audioCtx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    g.gain.setValueAtTime(0.2, now + idx * 0.1);
+                    g.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.4);
+                    o.start(now + idx * 0.1);
+                    o.stop(now + idx * 0.1 + 0.4);
+                });
+            } else if (type === 'medium_win') {
+                const now = audioCtx.currentTime;
+                const notes = [392.00, 523.25, 659.25];
+                notes.forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.frequency.setValueAtTime(freq, now + idx * 0.12);
+                    g.gain.setValueAtTime(0.2, now + idx * 0.12);
+                    g.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.35);
+                    o.start(now + idx * 0.12);
+                    o.stop(now + idx * 0.12 + 0.35);
+                });
+            } else if (type === 'small_win') {
+                const now = audioCtx.currentTime;
+                [329.63, 440.00].forEach((freq) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.frequency.setValueAtTime(freq, now);
+                    g.gain.setValueAtTime(0.25, now);
+                    g.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    o.start(now);
+                    o.stop(now + 0.4);
+                });
+            }
+        }
+
+        // ------------------ 遊戲邏輯與物理引擎 ------------------
+        const gameContainer = document.getElementById('game-container');
+        const targetsLayer = document.getElementById('targets-layer');
+        const timerDisplay = document.getElementById('timer');
+        const scoreDisplay = document.getElementById('score');
+        const nextTargetDisplay = document.getElementById('next-target');
+        const startOverlay = document.getElementById('start-overlay');
+        const winModal = document.getElementById('win-modal');
+
+        const BALL_COUNT = 15;
+        let score = 0;
+        let nextTarget = 1;
+        let timeLeft = 15.0;
+        let gameActive = false;
+        let timerInterval;
+        let physicsInterval;
+        let balls = [];
+
+        // 球體配色列表
+        const ballColors = [
+            'from-rose-400 to-pink-500 shadow-rose-400/40',
+            'from-orange-400 to-amber-500 shadow-orange-400/40',
+            'from-yellow-300 to-amber-400 shadow-yellow-300/40',
+            'from-lime-400 to-green-500 shadow-lime-400/40',
+            'from-emerald-400 to-teal-500 shadow-emerald-400/40',
+            'from-cyan-400 to-blue-500 shadow-cyan-400/40',
+            'from-blue-400 to-indigo-500 shadow-blue-400/40',
+            'from-violet-400 to-purple-500 shadow-violet-400/40',
+            'from-fuchsia-400 to-pink-500 shadow-fuchsia-400/40',
+            'from-red-400 to-rose-500 shadow-red-400/40',
+            'from-orange-300 to-amber-400 shadow-orange-300/40',
+            'from-emerald-300 to-green-400 shadow-emerald-300/40',
+            'from-indigo-300 to-purple-400 shadow-indigo-300/40',
+            'from-pink-400 to-rose-400 shadow-pink-400/40',
+            'from-purple-400 to-indigo-400 shadow-purple-400/40'
+        ];
+
+        // 產生氣球並分配隨機速度
+        function createBalls() {
+            targetsLayer.innerHTML = '';
+            balls = [];
+            
+            for (let i = 1; i <= BALL_COUNT; i++) {
+                const ballEl = document.createElement('div');
+                const colorClass = ballColors[(i - 1) % ballColors.length];
+                ballEl.className = `game-ball bg-gradient-to-br ${colorClass} border border-white/60`;
+                ballEl.innerText = i;
+                
+                let left = Math.floor(Math.random() * 76) + 12;
+                let top = Math.floor(Math.random() * 76) + 12;
+
+                const vx = (Math.random() * 0.2 - 0.1);
+                const vy = (Math.random() * 0.2 - 0.1);
+
+                ballEl.style.left = left + '%';
+                ballEl.style.top = top + '%';
+
+                ballEl.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    if (!gameActive) return;
+
+                    if (i === nextTarget) {
+                        playSound('hit');
+                        showFeedback(top, left, `🎉 ${i}`, 'text-emerald-500 font-extrabold');
+                        
+                        ballEl.remove();
+                        score++;
+                        scoreDisplay.innerText = score;
+                        nextTarget++;
+                        
+                        if (nextTarget <= BALL_COUNT) {
+                            nextTargetDisplay.innerText = nextTarget;
+                        } else {
+                            nextTargetDisplay.innerText = '完';
+                            endGame();
+                        }
+                    } else {
+                        handlePenalty(e);
+                    }
+                });
+
+                targetsLayer.appendChild(ballEl);
+                
+                balls.push({
+                    el: ballEl,
+                    x: left,
+                    y: top,
+                    vx: vx,
+                    vy: vy
+                });
+            }
+        }
+
+        // 處理物理反彈漂移
+        function updatePhysics() {
+            balls.forEach(ball => {
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+
+                if (ball.x <= 4 || ball.x >= 96) {
+                    ball.vx *= -1;
+                    ball.x = Math.max(4, Math.min(96, ball.x));
+                }
+                if (ball.y <= 4 || ball.y >= 96) {
+                    ball.vy *= -1;
+                    ball.y = Math.max(4, Math.min(96, ball.y));
+                }
+
+                ball.el.style.left = ball.x + '%';
+                ball.el.style.top = ball.y + '%';
+            });
+        }
+
+        // 浮空文字動畫回饋
+        function showFeedback(t, l, content, colorClass) {
+            const el = document.createElement('div');
+            el.innerHTML = content;
+            el.className = `absolute pointer-events-none z-50 font-black text-4xl tracking-widest ${colorClass}`;
+            el.style.top = t + '%';
+            el.style.left = l + '%';
+            el.style.transform = 'translate(-50%, -50%)';
+            el.style.transition = 'all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            targetsLayer.appendChild(el);
+            
+            requestAnimationFrame(() => {
+                el.style.transform = 'translate(-50%, -160%) scale(1.6)';
+                el.style.opacity = '0';
+            });
+            
+            setTimeout(() => el.remove(), 800);
+        }
+
+        // 點擊錯誤重罰機制 (扣 1.5 秒 + 畫面震動)
+        function handlePenalty(e) {
+            playSound('error');
+            
+            const rect = gameContainer.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 100;
+            const y = ((e.clientY - rect.top) / rect.height) * 100;
+            
+            showFeedback(y, x, '❌ -1.5s', 'text-rose-600 font-extrabold text-3xl');
+            
+            timeLeft = Math.max(0, timeLeft - 1.5);
+            timerDisplay.innerText = timeLeft.toFixed(1);
+            
+            gameContainer.classList.add('shake');
+            setTimeout(() => gameContainer.classList.remove('shake'), 400);
+
+            if (timeLeft <= 0) {
+                endGame();
+            }
+        }
+
+        // 啟動遊戲
+        function startGame() {
+            if (gameActive) return;
+
+            // 確保啟用音效上下文
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            score = 0;
+            nextTarget = 1;
+            timeLeft = 15.0;
+            gameActive = true;
+
+            scoreDisplay.innerText = '0';
+            timerDisplay.innerText = '15.0';
+            nextTargetDisplay.innerText = '1';
+
+            startOverlay.style.opacity = '0';
+            setTimeout(() => startOverlay.classList.add('hidden'), 300);
+
+            // 建立氣球與開始定時器
+            createBalls();
+
+            // 精確時間控制倒數 (100ms 刷新一次)
+            timerInterval = setInterval(() => {
+                timeLeft = Math.max(0, timeLeft - 0.1);
+                timerDisplay.innerText = timeLeft.toFixed(1);
+                
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 100);
+
+            // 物理渲染循環 (約 60fps)
+            physicsInterval = setInterval(updatePhysics, 16);
+        }
+
+        // 結束遊戲並結算獎項
+        function endGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            clearInterval(physicsInterval);
+
+            document.getElementById('final-score').innerText = score;
+
+            const prizeTitle = document.getElementById('prize-title');
+            const prizeEmoji = document.getElementById('prize-emoji');
+            const prizeDesc = document.getElementById('prize-desc');
+
+            if (score === 15) {
+                prizeTitle.innerText = "超級大獎！";
+                prizeEmoji.innerText = "🏆";
+                prizeDesc.innerText = "驚為天人！中學部眼力第一人！";
+                playSound('victory');
+            } else if (score >= 11 && score <= 14) {
+                prizeTitle.innerText = "精美中獎！";
+                prizeEmoji.innerText = "🥈";
+                prizeDesc.innerText = "身手敏捷，反應極快，太厲害了！";
+                playSound('medium_win');
+            } else if (score >= 1 && score <= 10) {
+                prizeTitle.innerText = "好運細獎！";
+                prizeEmoji.innerText = "🥉";
+                prizeDesc.innerText = "再接再厲，相信你下次能點得更快！";
+                playSound('small_win');
+            } else {
+                prizeTitle.innerText = "再試一次！";
+                prizeEmoji.innerText = "💪";
+                prizeDesc.innerText = "沒有擊中氣球，下次要瞄準囉！";
+                playSound('error');
+            }
+
+            setTimeout(() => {
+                winModal.classList.remove('hidden');
+            }, 600);
+        }
+
+        // 重設回到未開始狀態
+        function resetGame() {
+            winModal.classList.add('hidden');
+            startOverlay.classList.remove('hidden');
+            startOverlay.style.opacity = '1';
+
+            timerDisplay.innerText = '15.0';
+            scoreDisplay.innerText = '0';
+            nextTargetDisplay.innerText = '-';
+            targetsLayer.innerHTML = '';
+            balls = [];
+        }
+
+        // 點擊背景扣分監聽
+        gameContainer.addEventListener('mousedown', (e) => {
+            if (!gameActive) return;
+            
+            // 確保點擊的是背景、或者非有效目標層，才執行處罰
+            if (e.target.id === 'game-image' || e.target.id === 'targets-layer') {
+                handlePenalty(e);
+            }
+        });
+    </script>
+</body>
+</html>
