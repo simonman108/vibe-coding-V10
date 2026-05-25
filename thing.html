@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow 任務大師 - 極簡版</title>
+    <!-- iPhone 主畫面圖示 -->
+    <link class="apple-touch-icon" rel="apple-touch-icon" href="https://i.postimg.cc/pVfjKFNt/Gemini-Generated-Image-11ne6h11ne6h11ne.png">
+    <meta name="apple-mobile-web-app-title" content="待辦事情">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 圖標 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Confetti 灑花特效 -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen font-sans transition-colors duration-300">
+
+    <!-- 輕量 Toast 提示 -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full"></div>
+
+    <!-- 主容器 (極簡單欄設計) -->
+    <div class="max-w-3xl mx-auto px-4 py-8">
+        
+        <!-- 頁首 -->
+        <header class="flex items-center justify-between mb-8">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="text-3xl">🎯</span>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-primary-600 to-violet-500 bg-clip-text text-transparent dark:from-primary-400 dark:to-violet-300">
+                        TaskFlow 極簡版
+                    </h1>
+                </div>
+                <p id="current-date" class="text-xs text-slate-500 dark:text-slate-400 mt-1"></p>
+            </div>
+            
+            <!-- 功能切換 -->
+            <button id="theme-toggle" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-sm">
+                <i id="theme-icon" class="fas fa-moon text-lg text-amber-500 dark:text-yellow-300"></i>
+            </button>
+        </header>
+
+        <!-- LocalStorage 專屬管理面板 -->
+        <section class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="p-2 bg-violet-50 dark:bg-violet-950/40 text-primary-500 rounded-lg text-sm">
+                        <i class="fas fa-database"></i>
+                    </span>
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-700 dark:text-slate-300">瀏覽器儲存管理 (LocalStorage)</h2>
+                        <p id="storage-status" class="text-[11px] text-slate-400">目前處於自動同步狀態</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button id="btn-save-local" class="flex-1 sm:flex-initial px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                        <i class="fas fa-floppy-disk"></i> 儲存資料
+                    </button>
+                    <button id="btn-load-local" class="flex-1 sm:flex-initial px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                        <i class="fas fa-rotate"></i> 載入資料
+                    </button>
+                    <button id="btn-clear-local" class="flex-1 sm:flex-initial px-3 py-1.5 bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-950/50 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5">
+                        <i class="fas fa-trash-can"></i> 清除快取
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 任務進度條 -->
+        <section class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm mb-6 flex items-center justify-between gap-4">
+            <div class="flex-grow">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs font-bold text-slate-500 dark:text-slate-400">今日任務達成率</span>
+                    <span id="progress-percentage" class="text-xs font-bold text-primary-500">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div id="progress-bar" class="bg-gradient-to-r from-primary-500 to-violet-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="text-right shrink-0">
+                <span id="task-counter" class="text-lg font-bold">0 / 0</span>
+                <p class="text-[10px] text-slate-400">待辦 / 總數</p>
+            </div>
+        </section>
+
+        <!-- 主要工作區 -->
+        <main class="space-y-6">
+            
+            <!-- 新增任務表單 -->
+            <form id="add-task-form" class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div class="flex gap-3">
+                    <input type="text" id="task-title-input" required placeholder="準備做點什麼呢？..." 
+                        class="flex-grow px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition">
+                    
+                    <button type="submit" class="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl text-sm transition-all flex items-center gap-1.5 shrink-0 shadow-sm">
+                        <i class="fas fa-plus"></i> 新增
+                    </button>
+                </div>
+            </form>
+
+            <!-- 篩選與搜尋工具欄 -->
+            <div class="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
+                <!-- 篩選狀態按鈕 -->
+                <div class="flex gap-1.5 w-full sm:w-auto">
+                    <button data-filter="all" class="filter-btn flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300 transition">
+                        全部
+                    </button>
+                    <button data-filter="active" class="filter-btn flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 transition">
+                        進行中
+                    </button>
+                    <button data-filter="completed" class="filter-btn flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 transition">
+                        已完成
+                    </button>
+                </div>
+
+                <!-- 快速關鍵字搜尋 -->
+                <div class="relative w-full sm:max-w-xs">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-xs">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" id="search-input" placeholder="搜尋任務..." 
+                        class="w-full pl-8 pr-4 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 transition">
+                </div>
+            </div>
+
+            <!-- 任務清單呈現 -->
+            <div id="task-list" class="space-y-2.5">
+                <!-- 由 JS 動態生成 -->
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- 預設任務資料 ---
+        const defaultTasks = [
+            { id: "1", title: "探索 TaskFlow 極簡版功能 🚀", completed: false, createdAt: new Date().toISOString() },
+            { id: "2", title: "測試點選手動儲存按鈕備份 💾", completed: false, createdAt: new Date().toISOString() },
+            { id: "3", title: "完成第一項任務，解鎖全螢幕灑花 🎉", completed: true, createdAt: new Date().toISOString() }
+        ];
+
+        // --- 全域狀態 ---
+        let state = {
+            tasks: [],
+            filterStatus: "all",
+            searchQuery: "",
+            isDarkMode: localStorage.getItem('taskflow_lite_theme') === 'dark' || 
+                         (!('taskflow_lite_theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        };
+
+        // --- 初始化載入 ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
+
+        function initApp() {
+            updateDate();
+            applyTheme();
+            bindEvents();
+            
+            // 預設先嘗試讀取 LocalStorage
+            loadDataFromLocalStorage(true); // true 表示安靜讀取
+        }
+
+        function updateDate() {
+            const today = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('current-date').innerText = today.toLocaleDateString('zh-TW', options);
+        }
+
+        // --- 深淺模式 ---
+        function applyTheme() {
+            const html = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
+            if (state.isDarkMode) {
+                html.classList.add('dark');
+                themeIcon.className = 'fas fa-sun text-lg text-yellow-300';
+            } else {
+                html.classList.remove('dark');
+                themeIcon.className = 'fas fa-moon text-lg text-amber-500';
+            }
+            localStorage.setItem('taskflow_lite_theme', state.isDarkMode ? 'dark' : 'light');
+        }
+
+        // --- LocalStorage 核心操作 ---
+
+        // 手動儲存
+        function saveDataToLocalStorage(silent = false) {
+            try {
+                localStorage.setItem('taskflow_lite_tasks', JSON.stringify(state.tasks));
+                
+                // 更新狀態面板時間
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                document.getElementById('storage-status').innerText = `最後儲存時間：${timeStr}`;
+
+                if (!silent) {
+                    showToast('資料已成功儲存至 LocalStorage！', 'success');
+                }
+            } catch (error) {
+                showToast('儲存失敗，請檢查瀏覽器快取設定。', 'danger');
+            }
+        }
+
+        // 手動載入
+        function loadDataFromLocalStorage(silent = false) {
+            const localData = localStorage.getItem('taskflow_lite_tasks');
+            if (localData) {
+                state.tasks = JSON.parse(localData);
+                if (!silent) {
+                    showToast('已從 LocalStorage 載入最新進度！', 'info');
+                }
+            } else {
+                state.tasks = defaultTasks; // 首次載入或無資料時使用預設值
+                saveDataToLocalStorage(true);
+            }
+            renderTasks();
+            updateStats();
+        }
+
+        // 手動清除
+        function clearLocalStorage() {
+            localStorage.removeItem('taskflow_lite_tasks');
+            state.tasks = [];
+            document.getElementById('storage-status').innerText = '無備份資料';
+            renderTasks();
+            updateStats();
+            showToast('已清空瀏覽器 LocalStorage 資料！', 'danger');
+        }
+
+        // --- Toast 提醒組件 ---
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            toast.className = `flex items-center gap-2.5 p-3.5 rounded-xl shadow-md border text-xs font-semibold transition-all duration-300 transform translate-y-5 opacity-0 ${
+                type === 'success' 
+                    ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-200' 
+                    : type === 'danger'
+                        ? 'bg-red-50 dark:bg-red-950/80 border-red-200 dark:border-red-900 text-red-800 dark:text-red-200'
+                        : 'bg-blue-50 dark:bg-blue-950/80 border-blue-200 dark:border-blue-900 text-blue-800 dark:text-blue-200'
+            }`;
+
+            const icon = type === 'success' 
+                ? '<i class="fas fa-circle-check text-emerald-500"></i>' 
+                : type === 'danger'
+                    ? '<i class="fas fa-circle-exclamation text-red-500"></i>'
+                    : '<i class="fas fa-circle-info text-blue-500"></i>';
+
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-5', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 2500);
+        }
+
+        // --- 事件綁定 ---
+        function bindEvents() {
+            // 深淺色模式
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                state.isDarkMode = !state.isDarkMode;
+                applyTheme();
+            });
+
+            // 手動 LocalStorage 按鈕群
+            document.getElementById('btn-save-local').addEventListener('click', () => saveDataToLocalStorage(false));
+            document.getElementById('btn-load-local').addEventListener('click', () => loadDataFromLocalStorage(false));
+            document.getElementById('btn-clear-local').addEventListener('click', clearLocalStorage);
+
+            // 搜尋關鍵字
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                state.searchQuery = e.target.value.toLowerCase().trim();
+                renderTasks();
+            });
+
+            // 篩選按鈕切換
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => {
+                        b.className = "filter-btn flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 transition";
+                    });
+                    btn.className = "filter-btn flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300 transition";
+                    
+                    state.filterStatus = btn.dataset.filter;
+                    renderTasks();
+                });
+            });
+
+            // 新增任務
+            document.getElementById('add-task-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const title = document.getElementById('task-title-input').value.trim();
+
+                if (!title) return;
+
+                const newTask = {
+                    id: Date.now().toString(),
+                    title,
+                    completed: false,
+                    createdAt: new Date().toISOString()
+                };
+
+                state.tasks.unshift(newTask);
+                
+                // 自動同步儲存
+                saveDataToLocalStorage(true);
+
+                // 重設表單
+                document.getElementById('task-title-input').value = '';
+
+                renderTasks();
+                updateStats();
+                showToast('任務建立成功！已同步備份。');
+            });
+        }
+
+        // --- 數據統計更新 ---
+        function updateStats() {
+            const total = state.tasks.length;
+            const completed = state.tasks.filter(t => t.completed).length;
+            const active = total - completed;
+
+            document.getElementById('task-counter').innerText = `${active} / ${total}`;
+
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+            document.getElementById('progress-percentage').innerText = `${percentage}%`;
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+        }
+
+        // --- 渲染任務列表 ---
+        function renderTasks() {
+            const container = document.getElementById('task-list');
+            container.innerHTML = '';
+
+            // 1. 狀態篩選
+            let filtered = state.tasks;
+            if (state.filterStatus === 'active') {
+                filtered = filtered.filter(t => !t.completed);
+            } else if (state.filterStatus === 'completed') {
+                filtered = filtered.filter(t => t.completed);
+            }
+
+            // 2. 搜尋關鍵字過濾
+            if (state.searchQuery) {
+                filtered = filtered.filter(t => t.title.toLowerCase().includes(state.searchQuery));
+            }
+
+            // 3. 排序 (優先排序未完成，接著依時間由新到舊)
+            filtered.sort((a, b) => {
+                if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1;
+                }
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                        <span class="text-3xl">☕</span>
+                        <h3 class="font-bold text-slate-500 dark:text-slate-400 text-xs mt-2">目前無任何待辦任務</h3>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(task => {
+                const item = document.createElement('div');
+                item.className = `flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-200 ${
+                    task.completed ? 'opacity-60 bg-slate-50/50 dark:bg-slate-900/30' : 'hover:border-slate-200 dark:hover:border-slate-700'
+                }`;
+
+                item.innerHTML = `
+                    <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask('${task.id}')"
+                        class="w-5 h-5 rounded-lg text-primary-500 border-slate-300 dark:border-slate-600 focus:ring-primary-500 dark:bg-slate-900 cursor-pointer shrink-0">
+                    
+                    <div class="flex-grow min-w-0 flex items-center gap-2">
+                        <span class="truncate text-sm font-medium ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}">
+                            ${task.title}
+                        </span>
+                    </div>
+
+                    <button onclick="deleteTask('${task.id}')" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition shrink-0">
+                        <i class="fas fa-trash-can text-xs"></i>
+                    </button>
+                `;
+
+                container.appendChild(item);
+            });
+        }
+
+        // --- 任務操作 ---
+        window.toggleTask = function(id) {
+            const task = state.tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveDataToLocalStorage(true); // 完成狀態即時儲存
+                renderTasks();
+                updateStats();
+
+                if (task.completed) {
+                    showToast('任務已完成，做得好！');
+                    // 檢查是否全部完成並灑花
+                    const activeCount = state.tasks.filter(t => !t.completed).length;
+                    if (activeCount === 0 && state.tasks.length > 0) {
+                        triggerConfetti();
+                    }
+                }
+            }
+        };
+
+        window.deleteTask = function(id) {
+            state.tasks = state.tasks.filter(t => t.id !== id);
+            saveDataToLocalStorage(true);
+            renderTasks();
+            updateStats();
+            showToast('任務已移除！', 'danger');
+        };
+
+        // --- 全螢幕灑花特效 ---
+        function triggerConfetti() {
+            var duration = 2.5 * 1000;
+            var end = Date.now() + duration;
+
+            (function frame() {
+                confetti({
+                    particleCount: 2,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0, y: 0.8 }
+                });
+                confetti({
+                    particleCount: 2,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1, y: 0.8 }
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+        }
+    </script>
+</body>
+</html>
