@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>極簡風 Firebase 留言板</title>
+	<link rel="apple-touch-icon" href="https://i.postimg.cc/TYXxJQpL/Gemini-Generated-Image-humsihumsihumsih-(1).png">
+	<meta name="apple-mobile-web-app-title" content="生活日誌">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col justify-between">
+
+    <!-- 主容器 -->
+    <div class="container mx-auto px-4 py-8 max-w-2xl flex-grow">
+        <!-- 標題區域 -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 mb-2">
+                即時交流留言板
+            </h1>
+            <p class="text-slate-500 text-sm">基於 Firebase Realtime Database 技術的即時互動空間</p>
+        </header>
+
+        <!-- 輸入留言卡片 -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8 transition-all hover:shadow-md">
+            <div class="mb-4">
+                <label for="messageInput" class="block text-sm font-medium text-slate-700 mb-2">請輸入您的留言內容</label>
+                <textarea 
+                    id="messageInput" 
+                    rows="4" 
+                    placeholder="今天想分享點什麼呢？（請輸入文字...）"
+                    class="w-full px-4 py-3 text-slate-700 placeholder-slate-400 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+                ></textarea>
+                <!-- 字數提示 -->
+                <div class="text-right text-xs text-slate-400 mt-1" id="charCounter">0 字</div>
+            </div>
+
+            <!-- 按鈕區塊 -->
+            <div class="flex flex-wrap gap-3 justify-between items-center">
+                <div class="flex gap-2">
+                    <button 
+                        id="resetBtn" 
+                        disabled
+                        class="px-4 py-2.5 text-sm font-medium text-slate-400 bg-slate-100 rounded-xl cursor-not-allowed hover:bg-slate-200/80 hover:text-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        重填
+                    </button>
+                    <button 
+                        id="submitBtn" 
+                        disabled
+                        class="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-xl cursor-not-allowed shadow-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                        送出留言
+                    </button>
+                </div>
+
+                <!-- 清空日誌按鈕 -->
+                <button 
+                    id="openClearModalBtn" 
+                    class="px-4 py-2.5 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100/80 transition-all flex items-center gap-1.5"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    清空歷史
+                </button>
+            </div>
+        </div>
+
+        <!-- 歷史資料清單區 -->
+        <div class="space-y-4">
+            <div class="flex justify-between items-center px-1">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    最新留言清單
+                </h2>
+                <span id="totalCount" class="text-xs bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full font-medium">載入中...</span>
+            </div>
+
+            <!-- 資料列表容器 -->
+            <ul id="dataList" class="space-y-3">
+                <!-- 預設骨架屏 / 載入狀態 -->
+                <li class="bg-white rounded-xl border border-slate-100 p-5 flex items-center justify-center text-slate-400">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    即時資料同步中...
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 頁尾 -->
+    <footer class="text-center py-6 text-xs text-slate-400 border-t border-slate-100 bg-white">
+        &copy; 2026 Firebase Realtime Board. 設計美化版.
+    </footer>
+
+    <!-- 自訂通知 (Toast) 容器 -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- 自訂確認清除視窗 (Modal) -->
+    <div id="clearModal" class="fixed inset-0 z-50 hidden flex items-center justify-center px-4">
+        <!-- 背景遮罩 -->
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
+        <!-- 視窗主體 -->
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl relative z-10 transform scale-95 opacity-0 transition-all duration-300" id="modalContent">
+            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 text-center mb-2">確定要清空所有留言嗎？</h3>
+            <p class="text-slate-500 text-sm text-center mb-6">此動作將永久刪除資料庫中的所有留言紀錄，且無法復原。</p>
+            <div class="flex gap-3">
+                <button id="cancelClearBtn" class="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition-all">
+                    取消
+                </button>
+                <button id="confirmClearBtn" class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl text-sm transition-all">
+                    確定清空
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 載入 Firebase JS SDK (v11) -->
+    <script type="module">
+        // 匯入 Firebase App 與 Realtime Database 模組
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+        // Firebase 專案配置 (維持您原有的配置)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAo0riLFZV3JIkfXt5ODF41zPPiO0pibOk",
+            authDomain: "sport-c6656.firebaseapp.com",
+            databaseURL: "https://sport-c6656-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "sport-c6656",
+            storageBucket: "sport-c6656.firebasestorage.app",
+            messagingSenderId: "201001660267",
+            appId: "1:201001660267:web:0199ace6fd5204ccda662e"
+        };
+
+        // 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // 取得 DOM 元素
+        const messageInput = document.getElementById('messageInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const dataList = document.getElementById('dataList');
+        const charCounter = document.getElementById('charCounter');
+        const totalCount = document.getElementById('totalCount');
+
+        // Modal 元素
+        const clearModal = document.getElementById('clearModal');
+        const modalContent = document.getElementById('modalContent');
+        const openClearModalBtn = document.getElementById('openClearModalBtn');
+        const cancelClearBtn = document.getElementById('cancelClearBtn');
+        const confirmClearBtn = document.getElementById('confirmClearBtn');
+
+        // 隨機頭像漸層色組合 (美化卡片用)
+        const gradients = [
+            'from-pink-500 to-rose-500',
+            'from-purple-600 to-indigo-600',
+            'from-blue-500 to-cyan-500',
+            'from-teal-400 to-emerald-500',
+            'from-amber-400 to-orange-500'
+        ];
+
+        // 簡易 Toast 提示函式 (取代 alert)
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' ? 'bg-emerald-600' : 'bg-red-600';
+            
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 transform translate-y-2 opacity-0 transition-all duration-300 pointer-events-auto text-sm font-medium`;
+            toast.innerHTML = `
+                <span>${message}</span>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // 觸發進場動畫
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+
+            // 3秒後退場並移除
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 監聽輸入欄位內容，控制按鈕啟用/禁用狀態與字數統計
+        messageInput.addEventListener('input', () => {
+            const currentLen = messageInput.value.trim().length;
+            const hasContent = currentLen > 0;
+            
+            submitBtn.disabled = !hasContent;
+            resetBtn.disabled = !hasContent;
+            charCounter.textContent = `${currentLen} 字`;
+
+            // 動態切換按鈕樣式
+            if (hasContent) {
+                submitBtn.classList.remove('bg-blue-100', 'text-slate-400', 'cursor-not-allowed');
+                submitBtn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white', 'cursor-pointer');
+                resetBtn.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                resetBtn.classList.add('bg-slate-200', 'hover:bg-slate-300/80', 'text-slate-700', 'cursor-pointer');
+            } else {
+                submitBtn.classList.add('bg-blue-100', 'text-slate-400', 'cursor-not-allowed');
+                submitBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'text-white', 'cursor-pointer');
+                resetBtn.classList.add('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
+                resetBtn.classList.remove('bg-slate-200', 'hover:bg-slate-300/80', 'text-slate-700', 'cursor-pointer');
+            }
+        });
+
+        // 「送出」按鈕點擊事件：將資料儲存至 Firebase Realtime Database
+        submitBtn.addEventListener('click', () => {
+            const textValue = messageInput.value.trim();
+            if (textValue.length === 0) return;
+
+            const messagesRef = ref(db, 'messages');
+            const newData = {
+                content: textValue,
+                timestamp: Date.now()
+            };
+
+            // 使用 push 產生唯一 key 並寫入資料
+            push(messagesRef, newData)
+                .then(() => {
+                    // 成功寫入後，還原輸入欄位狀態
+                    messageInput.value = '';
+                    charCounter.textContent = '0 字';
+                    
+                    // 重設按鈕狀態
+                    submitBtn.disabled = true;
+                    resetBtn.disabled = true;
+                    submitBtn.className = "px-5 py-2.5 text-sm font-medium text-white bg-blue-100 rounded-xl cursor-not-allowed shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5";
+                    resetBtn.className = "px-4 py-2.5 text-sm font-medium text-slate-400 bg-slate-100 rounded-xl cursor-not-allowed transition-all disabled:opacity-50 disabled:cursor-not-allowed";
+
+                    showToast("留言送出成功！");
+                })
+                .catch((error) => {
+                    console.error("儲存失敗:", error);
+                    showToast("儲存失敗，請檢查權限與連線設定。", "error");
+                });
+        });
+
+        // 「重填」按鈕點擊事件
+        resetBtn.addEventListener('click', () => {
+            messageInput.value = '';
+            charCounter.textContent = '0 字';
+            submitBtn.disabled = true;
+            resetBtn.disabled = true;
+            submitBtn.className = "px-5 py-2.5 text-sm font-medium text-white bg-blue-100 rounded-xl cursor-not-allowed shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5";
+            resetBtn.className = "px-4 py-2.5 text-sm font-medium text-slate-400 bg-slate-100 rounded-xl cursor-not-allowed transition-all disabled:opacity-50 disabled:cursor-not-allowed";
+        });
+
+        // --- 清空日誌功能 ---
+        // 開啟 Modal
+        openClearModalBtn.addEventListener('click', () => {
+            clearModal.classList.remove('hidden');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        });
+
+        // 關閉 Modal 的輔助函式
+        function closeModal() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                clearModal.classList.add('hidden');
+            }, 300);
+        }
+
+        cancelClearBtn.addEventListener('click', closeModal);
+
+        // 執行確認清空 Firebase
+        confirmClearBtn.addEventListener('click', () => {
+            const messagesRef = ref(db, 'messages');
+            remove(messagesRef)
+                .then(() => {
+                    showToast("所有留言已成功清空！", "success");
+                    closeModal();
+                })
+                .catch((error) => {
+                    console.error("清空失敗:", error);
+                    showToast("清除資料失敗，請確認 Firebase Rules 的寫入權限！", "error");
+                    closeModal();
+                });
+        });
+
+        // 監聽 Firebase 資料庫，即時更新下方清單
+        const messagesRef = ref(db, 'messages');
+        onValue(messagesRef, (snapshot) => {
+            // 清空目前的清單
+            dataList.innerHTML = '';
+
+            const data = snapshot.val();
+            if (!data) {
+                totalCount.textContent = '共 0 則';
+                dataList.innerHTML = `
+                    <li class="bg-white rounded-xl border border-slate-100 p-8 text-center text-slate-400 flex flex-col items-center justify-center">
+                        <svg class="w-12 h-12 text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        目前尚無留言，快來搶沙發吧！
+                    </li>`;
+                return;
+            }
+
+            // 將 Firebase 物件轉換為陣列
+            const items = [];
+            for (let id in data) {
+                items.push({
+                    id: id,
+                    content: data[id].content,
+                    timestamp: data[id].timestamp || 0
+                });
+            }
+            
+            // 顯示留言數量
+            totalCount.textContent = `共 ${items.length} 則`;
+
+            // 新的留言排在最上面
+            items.sort((a, b) => b.timestamp - a.timestamp);
+
+            // 渲染至網頁清單
+            items.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = "bg-white rounded-2xl border border-slate-100/80 p-5 shadow-sm hover:shadow transition-all duration-200 flex items-start gap-4";
+                
+                // 格式化時間戳記
+                const date = new Date(item.timestamp);
+                const timeString = date.toLocaleString();
+
+                // 隨機選擇漸層背景 (用 key/ID 作為 Hash，維持固定顏色)
+                const hashIndex = Math.abs(item.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % gradients.length;
+                const avatarGradient = gradients[hashIndex];
+
+                li.innerHTML = `
+                    <!-- 隨機漸層大頭貼占位符 -->
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm">
+                        U
+                    </div>
+                    <!-- 內容區 -->
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="text-xs font-semibold text-slate-500">匿名使用者</span>
+                            <span class="text-[11px] text-slate-400 font-medium">${timeString}</span>
+                        </div>
+                        <p class="text-slate-700 leading-relaxed text-[15px] whitespace-pre-wrap break-words">${escapeHtml(item.content)}</p>
+                    </div>
+                `;
+                dataList.appendChild(li);
+            });
+        }, (error) => {
+            console.error("讀取失敗:", error);
+            dataList.innerHTML = `
+                <li class="bg-red-50 text-red-600 rounded-xl p-5 text-sm font-medium border border-red-100 flex items-center gap-2">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    讀取資料失敗，請確認 Firebase 安全規則（Rules）是否已開啟讀寫權限。
+                </li>`;
+        });
+
+        // 防止 HTML 注入的簡易防護函式
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+    </script>
+</body>
+</html>
