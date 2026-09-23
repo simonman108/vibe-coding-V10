@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>孔明棋歡樂大冒險 🎈</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Playful text -->
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Quicksand:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- Tone.js for cheerful sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        playful: ['ZCOOL KuaiLe', 'Quicksand', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: 'Quicksand', 'ZCOOL KuaiLe', sans-serif;
+            background: linear-gradient(135deg, #e0f2fe 0%, #fef3c7 50%, #fce7f3 100%);
+            touch-action: manipulation;
+        }
+        
+        /* Playful cartoon board pattern */
+        .kids-board {
+            background: radial-gradient(circle, #ffffff 20%, #f1f5f9 100%);
+            box-shadow: 0 20px 40px rgba(148, 163, 184, 0.25), inset 0 -8px 0px rgba(148, 163, 184, 0.1);
+        }
+
+        /* Bubble Pop Animation */
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .bubble-pop {
+            animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Pulsing hint */
+        @keyframes pulse-yellow {
+            0%, 100% { box-shadow: 0 0 0 0px rgba(251, 191, 36, 0.7); }
+            50% { box-shadow: 0 0 0 12px rgba(251, 191, 36, 0); }
+        }
+        .hint-pulse {
+            animation: pulse-yellow 1.5s infinite;
+        }
+
+        /* Rainbow text gradient */
+        .rainbow-text {
+            background: linear-gradient(to right, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-center items-center overflow-x-hidden p-3 md:p-6 lg:p-8">
+
+    <!-- Outer Horizontal Container: Splits Left (Board) and Right (Dashboard) on larger screens -->
+    <div class="w-full max-w-5xl mx-auto flex flex-col lg:flex-row gap-6 items-center lg:items-stretch justify-center">
+        
+        <!-- LEFT PANEL: The Playful Game Board (Main Focus) -->
+        <section class="flex-1 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm p-4 md:p-6 rounded-[32px] border-2 border-white shadow-sm w-full max-w-[480px] lg:max-w-none">
+            <div class="kids-board p-4 md:p-6 rounded-[30px] border-4 border-white relative w-full aspect-square max-w-[420px] max-h-[420px] flex items-center justify-center">
+                <!-- Playful grid background details -->
+                <div class="absolute inset-2 rounded-[24px] bg-[#f8fafc] border-2 border-dashed border-slate-200"></div>
+                
+                <!-- 7x7 Grid Grid -->
+                <div id="board-grid" class="relative z-10 w-full h-full grid grid-cols-7 grid-rows-7 gap-1.5 justify-items-center items-center">
+                    <!-- Cell elements rendered dynamically here -->
+                </div>
+            </div>
+            <!-- Dynamic Tips Banner at bottom of Board -->
+            <div id="status-banner" class="w-full text-center mt-4 py-2 px-4 bg-white/80 border border-white rounded-2xl text-xs md:text-sm font-bold text-sky-600 min-h-10 flex items-center justify-center shadow-sm">
+                <span>👉 點選一顆球球開始大冒險吧！</span>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: Header, Timer, Stats, and Control Actions -->
+        <aside class="w-full lg:w-[420px] flex flex-col gap-4 justify-between">
+            
+            <!-- 1. Header (Integrated Title) -->
+            <header class="bg-white/90 backdrop-blur-md rounded-[24px] py-3 px-5 shadow-sm border-2 border-white flex justify-between items-center">
+                <div class="flex items-center space-x-2.5">
+                    <span class="text-3xl">🎈</span>
+                    <div>
+                        <h1 class="text-2xl font-black tracking-wide rainbow-text">孔明棋大冒險</h1>
+                        <p class="text-[10px] text-sky-500 font-bold tracking-wider">KIDS PEG SOLITAIRE</p>
+                    </div>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="openRulesModal()" class="w-10 h-10 bg-amber-400 hover:bg-amber-500 text-white rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-110" title="遊戲規則">
+                        <i class="fa-solid fa-question text-lg"></i>
+                    </button>
+                    <button onclick="toggleSound()" id="sound-toggle-btn" class="w-10 h-10 bg-sky-400 hover:bg-sky-500 text-white rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-110" title="切換音效">
+                        <i class="fa-solid fa-volume-high text-lg"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 2. Big & Bright Stats Bar with 1-Minute Timer Bar -->
+            <div class="bg-white/90 rounded-[24px] p-4 shadow-sm border-2 border-white flex flex-col gap-3">
+                <!-- Dynamic 1-Minute Time Progress Bar -->
+                <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden border border-slate-200">
+                    <div id="timer-bar" class="bg-gradient-to-r from-emerald-400 to-teal-500 h-full w-full transition-all duration-1000 ease-linear"></div>
+                </div>
+
+                <!-- Stats values -->
+                <div class="grid grid-cols-3 gap-2.5 text-center">
+                    <div class="bg-sky-50 rounded-2xl p-2.5 border border-sky-100 flex flex-col justify-center">
+                        <span class="text-[10px] text-sky-500 font-bold">⏱️ 倒數時間</span>
+                        <span id="game-timer" class="text-lg md:text-xl font-black text-sky-600">01:00</span>
+                    </div>
+                    <div class="bg-pink-50 rounded-2xl p-2.5 border border-pink-100 flex flex-col justify-center">
+                        <span class="text-[10px] text-pink-500 font-bold">🔵 剩餘球球</span>
+                        <span id="peg-count" class="text-lg md:text-xl font-black text-pink-600">32</span>
+                    </div>
+                    <div class="bg-amber-50 rounded-2xl p-2.5 border border-amber-100 flex flex-col justify-center">
+                        <span class="text-[10px] text-amber-500 font-bold">⭐ 步數挑戰</span>
+                        <span id="move-count-text" class="text-lg md:text-xl font-black text-amber-600">0 步</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Quick Game Modes Selector (Simplified & Colorful) -->
+            <div class="flex justify-between gap-2.5">
+                <button onclick="changeBoardType('english')" id="btn-board-english" class="flex-1 py-3 bg-gradient-to-r from-teal-400 to-emerald-400 text-white font-black text-xs md:text-sm rounded-2xl shadow-md border-b-4 border-emerald-600 transition-all active:translate-y-1">
+                    🏰 經典英式
+                </button>
+                <button onclick="changeBoardType('mini')" id="btn-board-mini" class="flex-1 py-3 bg-gradient-to-r from-sky-400 to-blue-400 text-white font-black text-xs md:text-sm rounded-2xl shadow-md border-b-4 border-blue-600 transition-all opacity-60">
+                    ⭐ 新手十字
+                </button>
+                <button onclick="changeTheme()" id="btn-theme-cycle" class="flex-1 py-3 bg-gradient-to-r from-purple-400 to-pink-400 text-white font-black text-xs md:text-sm rounded-2xl shadow-md border-b-4 border-pink-600 transition-all">
+                    🎨 換新造型
+                </button>
+            </div>
+
+            <!-- 4. Interactive Action Controls -->
+            <div class="flex items-center justify-center gap-3">
+                <button onclick="stepUndo()" id="btn-undo" class="flex-1 py-4 bg-rose-400 hover:bg-rose-500 text-white font-black text-sm rounded-2xl shadow-lg border-b-4 border-rose-600 transition-all active:translate-y-1 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span>悔棋</span>
+                </button>
+                <button onclick="getHint()" id="btn-hint" class="flex-1 py-4 bg-amber-400 hover:bg-amber-500 text-slate-800 font-black text-sm rounded-2xl shadow-lg border-b-4 border-amber-600 transition-all active:translate-y-1 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>妙計提示</span>
+                </button>
+                <button onclick="triggerReset()" class="flex-1 py-4 bg-indigo-400 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl shadow-lg border-b-4 border-indigo-600 transition-all active:translate-y-1 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-arrow-rotate-left"></i>
+                    <span>重玩</span>
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Simple Bottom Footer -->
+    <footer class="text-center text-[10px] text-slate-400 font-bold mt-8">
+        <p>✨ 動腦大挑戰．智慧孔明棋 ✨</p>
+    </footer>
+
+    <!-- Simplified Kid-Friendly Rules Modal -->
+    <div id="rules-modal" class="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden transition-opacity duration-300 opacity-0">
+        <div class="bg-white border-4 border-amber-400 max-w-sm w-full rounded-3xl p-6 shadow-2xl relative bubble-pop">
+            <div class="text-center">
+                <span class="text-5xl">👑</span>
+                <h3 class="text-2xl font-black text-amber-500 mt-2 mb-4">孔明棋怎麼玩？</h3>
+            </div>
+            
+            <div class="space-y-4 text-sm text-slate-600 font-bold leading-relaxed">
+                <div class="flex items-start space-x-2 bg-amber-50 p-3 rounded-2xl border border-amber-100">
+                    <span class="text-xl">🏃</span>
+                    <p>選擇一顆亮晶晶的球，隔著隔壁的球，<span class="text-rose-500">跳進後方的空格</span>裡！</p>
+                </div>
+                <div class="flex items-start space-x-2 bg-emerald-50 p-3 rounded-2xl border border-emerald-100">
+                    <span class="text-xl">😋</span>
+                    <p>被你跨過去的那顆可憐球球，就會被你「吃掉」拿走喔！</p>
+                </div>
+                <div class="flex items-start space-x-2 bg-sky-50 p-3 rounded-2xl border border-sky-100">
+                    <span class="text-xl">🎯</span>
+                    <p><span class="text-sky-600">終極挑戰：</span>在 60 秒內一直吃，到最後<span class="text-rose-500">只剩下一顆球</span>就獲勝囉！</p>
+                </div>
+            </div>
+            
+            <div class="mt-6">
+                <button onclick="closeRulesModal()" class="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white font-black rounded-2xl shadow-md border-b-4 border-orange-600 transition-transform active:scale-95">
+                    我知道了，開始挑戰！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kid-Friendly Game Over Settlement Modal -->
+    <div id="game-over-modal" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden transition-opacity duration-300 opacity-0">
+        <div class="bg-white border-4 border-sky-400 max-w-xs w-full rounded-3xl p-5 text-center shadow-2xl relative bubble-pop">
+            <div id="confetti-container" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+            
+            <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-amber-400">
+                <span id="win-icon" class="text-3xl">🏆</span>
+            </div>
+            
+            <h3 id="game-over-title" class="text-2xl font-black text-sky-600 mb-1">大冒險結束！</h3>
+            <p id="game-over-subtitle" class="text-xs text-slate-400 font-bold mb-4">讓我們看看你的冒險成績吧！</p>
+            
+            <!-- Simplified Scoreboard -->
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <div class="bg-pink-50 p-2 rounded-2xl border border-pink-100">
+                    <div class="text-[10px] text-pink-400 font-bold">剩下幾顆球</div>
+                    <div id="settle-pegs" class="text-2xl font-black text-pink-600">5</div>
+                </div>
+                <div class="bg-amber-50 p-2 rounded-2xl border border-amber-100">
+                    <div class="text-[10px] text-amber-400 font-bold">完成步數</div>
+                    <div id="settle-moves" class="text-2xl font-black text-amber-600">28</div>
+                </div>
+            </div>
+
+            <!-- Grade Display -->
+            <div class="bg-sky-50 p-3 rounded-2xl border border-sky-200 mb-5">
+                <div class="text-[10px] text-sky-400 font-bold">獲得勇士封號</div>
+                <div id="settle-rating" class="text-xl font-black text-sky-600">星際大將軍</div>
+                <p id="settle-eval-desc" class="text-[11px] text-slate-500 mt-1 font-semibold">你做得非常好，動動腦筋再試一次吧！</p>
+            </div>
+            
+            <div class="space-y-2">
+                <button onclick="restartGame()" class="w-full py-3 bg-gradient-to-r from-sky-400 to-blue-500 text-white font-black rounded-2xl shadow-md border-b-4 border-blue-700 transition-transform active:scale-95 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>再次挑戰</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game Layout Config
+        const BOARD_LAYOUTS = {
+            english: [
+                [0, 0, 2, 2, 2, 0, 0],
+                [0, 0, 2, 2, 2, 0, 0],
+                [2, 2, 2, 2, 2, 2, 2],
+                [2, 2, 2, 1, 2, 2, 2], // Standard Start Center Empty
+                [2, 2, 2, 2, 2, 2, 2],
+                [0, 0, 2, 2, 2, 0, 0],
+                [0, 0, 2, 2, 2, 0, 0]
+            ],
+            mini: [
+                [0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 2, 0, 0, 0],
+                [0, 0, 0, 2, 0, 0, 0],
+                [0, 2, 2, 1, 2, 2, 0],
+                [0, 0, 0, 2, 0, 0, 0],
+                [0, 0, 0, 2, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0]
+            ]
+        };
+
+        // Theme Lists (Bright kid-friendly versions)
+        const THEMES = ['candy', 'emoji', 'star'];
+        let activeThemeIndex = 0; // Starts with candy
+
+        // Game state variables
+        let currentBoardType = 'english';
+        let selectedPeg = null; // {r, c}
+        let boardState = [];
+        let history = [];
+        let redoHistory = []; // Kept internally but omitted from UI to simplify
+        let movesCount = 0;
+        let gameTimerInterval = null;
+        
+        // 60-second timer logic
+        const TOTAL_TIME = 60; // 60 seconds
+        let timeLeft = TOTAL_TIME;
+        
+        let isMuted = false;
+        let gameActive = false;
+
+        // Custom arcade synthesizer sound effects via Tone.js
+        let popSynth, bounceSynth, winSynth;
+
+        function initAudio() {
+            if (popSynth) return;
+            try {
+                // Cheerful arcade pop
+                popSynth = new Tone.MonoSynth({
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.005, decay: 0.08, sustain: 0, release: 0.05 }
+                }).toDestination();
+                popSynth.volume.value = -10;
+
+                // Selection sound
+                bounceSynth = new Tone.Synth({
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 }
+                }).toDestination();
+                bounceSynth.volume.value = -8;
+
+                // Game Win celebratory sound
+                winSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.05, decay: 0.1, sustain: 0.2, release: 0.5 }
+                }).toDestination();
+                winSynth.volume.value = -8;
+            } catch (e) {
+                console.log("Audio failed to auto-init: ", e);
+            }
+        }
+
+        // Initialize board
+        function initBoard(type) {
+            boardState = JSON.parse(JSON.stringify(BOARD_LAYOUTS[type]));
+            history = [];
+            redoHistory = [];
+            selectedPeg = null;
+            movesCount = 0;
+            timeLeft = TOTAL_TIME;
+            gameActive = false;
+            
+            updateStats();
+            stopTimer();
+            updateTimerDisplay();
+            renderBoard();
+            updateHistoryButtons();
+            
+            document.getElementById('status-banner').innerHTML = '<span>👉 點選一顆球球開始大冒險吧！</span>';
+        }
+
+        function cloneState(state) {
+            return JSON.parse(JSON.stringify(state));
+        }
+
+        // 2-Minute Timer Controls
+        function startTimer() {
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateTimerDisplay();
+                } else {
+                    stopTimer();
+                    gameActive = false;
+                    playSound('over');
+                    triggerSettlement(true); // Time's out trigger!
+                }
+            }, 1000);
+            gameActive = true;
+        }
+
+        function stopTimer() {
+            if (gameTimerInterval) {
+                clearInterval(gameTimerInterval);
+                gameTimerInterval = null;
+            }
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const seconds = (timeLeft % 60).toString().padStart(2, '0');
+            const timerText = document.getElementById('game-timer');
+            timerText.innerText = `${minutes}:${seconds}`;
+
+            // Scale Progress Bar
+            const bar = document.getElementById('timer-bar');
+            const percentage = (timeLeft / TOTAL_TIME) * 100;
+            bar.style.width = `${percentage}%`;
+
+            // Style progress color & warning effects
+            if (timeLeft <= 30) {
+                bar.classList.remove('from-emerald-400', 'to-teal-500', 'from-amber-400', 'to-orange-400');
+                bar.classList.add('from-rose-400', 'to-red-500', 'animate-pulse');
+                timerText.classList.remove('text-sky-600');
+                timerText.classList.add('text-rose-600', 'animate-ping');
+            } else if (timeLeft <= 60) {
+                bar.classList.remove('from-emerald-400', 'to-teal-500');
+                bar.classList.add('from-amber-400', 'to-orange-400');
+                timerText.classList.remove('text-rose-600');
+                timerText.classList.add('text-amber-500');
+            } else {
+                bar.classList.remove('from-rose-400', 'to-red-500', 'from-amber-400', 'to-orange-400', 'animate-pulse');
+                bar.classList.add('from-emerald-400', 'to-teal-500');
+                timerText.className = "text-lg md:text-xl font-black text-sky-600";
+            }
+        }
+
+        // Update display text values
+        function updateStats() {
+            const pegCount = countPegs();
+            document.getElementById('peg-count').innerText = pegCount;
+            document.getElementById('move-count-text').innerText = `${movesCount} 步`;
+        }
+
+        function countPegs() {
+            let count = 0;
+            for (let r = 0; r < 7; r++) {
+                for (let c = 0; c < 7; c++) {
+                    if (boardState[r][c] === 2) count++;
+                }
+            }
+            return count;
+        }
+
+        // Render Board UI elements
+        function renderBoard() {
+            const boardGrid = document.getElementById('board-grid');
+            boardGrid.innerHTML = '';
+
+            let validMoves = [];
+            if (selectedPeg) {
+                validMoves = getValidMoves(selectedPeg.r, selectedPeg.c);
+            }
+
+            const currentTheme = THEMES[activeThemeIndex];
+
+            for (let r = 0; r < 7; r++) {
+                for (let c = 0; c < 7; c++) {
+                    const cellVal = boardState[r][c];
+                    
+                    if (cellVal === 0) {
+                        const div = document.createElement('div');
+                        div.className = "w-full aspect-square pointer-events-none opacity-0";
+                        boardGrid.appendChild(div);
+                        continue;
+                    }
+
+                    const cell = document.createElement('button');
+                    cell.className = "w-full aspect-square rounded-full flex items-center justify-center relative focus:outline-none";
+                    
+                    // Simple cartoon slot shadow
+                    cell.innerHTML = `
+                        <div class="w-4/5 h-4/5 rounded-full bg-slate-200 shadow-[inset_0_3px_5px_rgba(100,116,139,0.2)] border border-slate-300 flex items-center justify-center"></div>
+                    `;
+
+                    if (cellVal === 2) {
+                        const isSelected = selectedPeg && selectedPeg.r === r && selectedPeg.c === c;
+                        const peg = document.createElement('div');
+                        
+                        // Responsive candy sizing & styling
+                        peg.className = `absolute w-[76%] h-[76%] rounded-full cursor-pointer transition-all duration-200 flex items-center justify-center shadow-md select-none ${
+                            isSelected ? 'scale-110 -translate-y-1 shadow-lg ring-4 ring-amber-400 z-20' : 'hover:scale-105'
+                        }`;
+
+                        // Styles based on selected kid theme
+                        if (currentTheme === 'candy') {
+                            // Bright sweet glossy bubblegum ball colors based on coordinates to make it rainbow!
+                            const colors = [
+                                "from-pink-400 to-rose-500", 
+                                "from-sky-400 to-blue-500", 
+                                "from-amber-400 to-orange-500", 
+                                "from-emerald-400 to-green-500", 
+                                "from-fuchsia-400 to-purple-500"
+                            ];
+                            const index = (r + c) % colors.length;
+                            peg.className += ` bg-gradient-to-tr ${colors[index]} border-2 border-white`;
+                            
+                            // Highlights inside glossy candies
+                            const glare = document.createElement('div');
+                            glare.className = "absolute top-1 left-2 w-2 h-2 rounded-full bg-white/50";
+                            peg.appendChild(glare);
+                        } 
+                        else if (currentTheme === 'emoji') {
+                            // Adorable animal emojis
+                            const emojis = ["🦁", "🐯", "🐱", "🐰", "🦊", "🐨", "🐸", "🐵", "🐙", "🦖"];
+                            const index = (r * 7 + c) % emojis.length;
+                            peg.className += " bg-amber-100 border-2 border-amber-300 text-lg md:text-xl";
+                            peg.innerText = emojis[index];
+                        } 
+                        else if (currentTheme === 'star') {
+                            // Sparkly space stars
+                            peg.className += " bg-gradient-to-tr from-violet-500 via-indigo-500 to-sky-400 border-2 border-white";
+                            peg.innerHTML = `<span class="text-white text-xs">⭐</span>`;
+                        }
+
+                        cell.appendChild(peg);
+                        cell.onclick = () => handleCellClick(r, c);
+                    } 
+                    else if (cellVal === 1) {
+                        cell.onclick = () => handleCellClick(r, c);
+
+                        const isTarget = validMoves.some(m => m.r === r && m.c === c);
+                        if (isTarget) {
+                            // Kid-friendly golden destination target ring
+                            const targetDot = document.createElement('div');
+                            targetDot.className = "absolute w-4 h-4 rounded-full bg-amber-400 cursor-pointer shadow-md hint-pulse border border-white z-10";
+                            cell.appendChild(targetDot);
+                        }
+                    }
+
+                    // Highlight for source & target in case Hint is active
+                    if (hintSource && hintSource.r === r && hintSource.c === c) {
+                        cell.querySelector('.absolute')?.classList.add('ring-4', 'ring-indigo-400', 'animate-bounce');
+                    }
+
+                    boardGrid.appendChild(cell);
+                }
+            }
+        }
+
+        // Cycle through child styles
+        function changeTheme() {
+            activeThemeIndex = (activeThemeIndex + 1) % THEMES.length;
+            playSound('select');
+            renderBoard();
+        }
+
+        function inBounds(r, c) {
+            return r >= 0 && r < 7 && c >= 0 && c < 7;
+        }
+
+        function getValidMoves(r, c) {
+            const directions = [
+                { dr: -2, dc: 0, mr: -1, mc: 0 },
+                { dr: 2, dc: 0, mr: 1, mc: 0 },
+                { dr: 0, dc: -2, mr: 0, mc: -1 },
+                { dr: 0, dc: 2, mr: 0, mc: 1 }
+            ];
+            
+            const valid = [];
+            if (boardState[r][c] !== 2) return valid;
+
+            directions.forEach(({ dr, dc, mr, mc }) => {
+                const targetR = r + dr;
+                const targetC = c + dc;
+                const middleR = r + mr;
+                const middleC = c + mc;
+
+                if (inBounds(targetR, targetC)) {
+                    if (boardState[middleR][middleC] === 2 && boardState[targetR][targetC] === 1) {
+                        valid.push({ r: targetR, c: targetC, mr: middleR, mc: middleC });
+                    }
+                }
+            });
+
+            return valid;
+        }
+
+        function checkAnyMovesExist() {
+            for (let r = 0; r < 7; r++) {
+                for (let c = 0; c < 7; c++) {
+                    if (boardState[r][c] === 2) {
+                        if (getValidMoves(r, c).length > 0) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Active Hint State
+        let hintSource = null;
+
+        function clearHintHighlight() {
+            hintSource = null;
+        }
+
+        // Main game click router
+        function handleCellClick(r, c) {
+            clearHintHighlight();
+
+            if (!gameActive && countPegs() > 0) {
+                startTimer();
+            }
+
+            const cellVal = boardState[r][c];
+
+            if (selectedPeg) {
+                if (r === selectedPeg.r && c === selectedPeg.c) {
+                    selectedPeg = null;
+                    playSound('select');
+                    renderBoard();
+                } else if (cellVal === 2) {
+                    selectedPeg = { r, c };
+                    playSound('select');
+                    renderBoard();
+                } else if (cellVal === 1) {
+                    const validMoves = getValidMoves(selectedPeg.r, selectedPeg.c);
+                    const matchingMove = validMoves.find(m => m.r === r && m.c === c);
+
+                    if (matchingMove) {
+                        executeMove(selectedPeg, matchingMove);
+                    } else {
+                        selectedPeg = null;
+                        renderBoard();
+                    }
+                }
+            } else {
+                if (cellVal === 2) {
+                    selectedPeg = { r, c };
+                    playSound('select');
+                    renderBoard();
+                }
+            }
+        }
+
+        // Do step jump
+        function executeMove(from, move) {
+            history.push(cloneState(boardState));
+            redoHistory = []; // standard empty
+
+            // Transform state
+            boardState[from.r][from.c] = 1;
+            boardState[move.mr][move.mc] = 1;
+            boardState[move.r][move.c] = 2;
+
+            selectedPeg = null;
+            movesCount++;
+            
+            playSound('move');
+            updateStats();
+            updateHistoryButtons();
+            renderBoard();
+
+            document.getElementById('status-banner').innerHTML = `
+                <span>🎉 精彩的一步！吃掉了一顆球球囉！</span>
+            `;
+
+            checkGameOver();
+        }
+
+        // Simple Undo Step
+        function stepUndo() {
+            if (history.length === 0) return;
+            
+            clearHintHighlight();
+            boardState = history.pop();
+            
+            if (movesCount > 0) movesCount--;
+            selectedPeg = null;
+            
+            playSound('select');
+            updateStats();
+            updateHistoryButtons();
+            renderBoard();
+            
+            document.getElementById('status-banner').innerHTML = '<span>🔙 上一步！重新考慮一下吧！</span>';
+        }
+
+        function updateHistoryButtons() {
+            document.getElementById('btn-undo').disabled = history.length === 0;
+        }
+
+        // Simple Next Move Generator for Kids
+        function getHint() {
+            const allPegsWithMoves = [];
+
+            for (let r = 0; r < 7; r++) {
+                for (let c = 0; c < 7; c++) {
+                    if (boardState[r][c] === 2) {
+                        const moves = getValidMoves(r, c);
+                        if (moves.length > 0) {
+                            allPegsWithMoves.push({ source: { r, c } });
+                        }
+                    }
+                }
+            }
+
+            if (allPegsWithMoves.length === 0) {
+                document.getElementById('status-banner').innerHTML = '<span class="text-rose-500">😭 哎呀，好像已經沒有可以走的球球了！</span>';
+                return;
+            }
+
+            // Pick a random possible peg to move
+            const randomPeg = allPegsWithMoves[Math.floor(Math.random() * allPegsWithMoves.length)];
+
+            hintSource = randomPeg.source;
+            playSound('select');
+            renderBoard();
+
+            document.getElementById('status-banner').innerHTML = `
+                <span class="text-amber-500 font-bold">💡 貼心提醒：試試看移動亮起來的那顆球球！</span>
+            `;
+        }
+
+        // Cheerful kids audio controller
+        function playSound(type) {
+            if (isMuted) return;
+            initAudio();
+            
+            try {
+                const now = Tone.now();
+                if (type === 'select') {
+                    // Small upward blip
+                    bounceSynth.triggerAttackRelease("C5", "16n");
+                } else if (type === 'move') {
+                    // Bubble-pop style sweep
+                    popSynth.triggerAttackRelease("E5", "16n");
+                } else if (type === 'victory') {
+                    // Celebration major scale
+                    winSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now);
+                    winSynth.triggerAttackRelease(["E4", "G4", "C5"], "8n", now + 0.15);
+                    winSynth.triggerAttackRelease(["G4", "C5", "E5"], "4n", now + 0.3);
+                } else if (type === 'over') {
+                    // Disappointed slide down
+                    bounceSynth.triggerAttackRelease("A3", "8n", now);
+                    bounceSynth.triggerAttackRelease("F3", "4n", now + 0.2);
+                }
+            } catch (err) {
+                console.log(err);
+            }
+        }
+
+        function toggleSound() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('sound-toggle-btn');
+            if (isMuted) {
+                btn.innerHTML = `<i class="fa-solid fa-volume-xmark text-lg"></i>`;
+                btn.className = "w-10 h-10 bg-slate-400 hover:bg-slate-500 text-white rounded-full flex items-center justify-center shadow-md";
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-volume-high text-lg"></i>`;
+                btn.className = "w-10 h-10 bg-sky-400 hover:bg-sky-500 text-white rounded-full flex items-center justify-center shadow-md";
+                initAudio();
+            }
+        }
+
+        function triggerReset() {
+            initBoard(currentBoardType);
+        }
+
+        function changeBoardType(type) {
+            currentBoardType = type;
+            
+            const btnEng = document.getElementById('btn-board-english');
+            const btnMini = document.getElementById('btn-board-mini');
+
+            if (type === 'english') {
+                btnEng.classList.remove('opacity-60');
+                btnMini.classList.add('opacity-60');
+            } else {
+                btnEng.classList.add('opacity-60');
+                btnMini.classList.remove('opacity-60');
+            }
+
+            initBoard(type);
+        }
+
+        function checkGameOver() {
+            if (!checkAnyMovesExist()) {
+                stopTimer();
+                gameActive = false;
+                setTimeout(() => {
+                    triggerSettlement(false);
+                }, 800);
+            }
+        }
+
+        // Score settlement with super cute titles
+        function triggerSettlement(isTimeOut = false) {
+            const pegsLeft = countPegs();
+            
+            let ratingTitle = "探險家小新手 🏕️";
+            let desc = "踏出了冒險的第一步！繼續練習，你一定能成為超級智慧大將軍！";
+            
+            if (isTimeOut) {
+                ratingTitle = "超速挑戰者 ⏱️";
+                desc = "時間到啦！下次動作更快一點點，一定可以吃掉更多球球！";
+            } else if (pegsLeft === 1) {
+                ratingTitle = "智商超凡大將軍 👑";
+                desc = "太不可思議了！你居然成功消除了所有雜球，只剩下最後一顆！你是最棒的孔明再世！";
+                playSound('victory');
+                triggerConfetti();
+            } else if (pegsLeft === 2) {
+                ratingTitle = "神奇智慧魔術師 🔮";
+                desc = "超級厲害！只剩下最後兩顆，就差臨門一腳就大滿貫了！快再試一局！";
+                playSound('victory');
+                triggerConfetti();
+            } else if (pegsLeft === 3) {
+                ratingTitle = "百戰百勝小勇士 ⚔️";
+                desc = "戰力非凡！你是個出色的探險家，在亂軍之中吃掉了這麼多球球！";
+                playSound('victory');
+            } else if (pegsLeft === 4) {
+                ratingTitle = "聰明智慧星星 ⭐";
+                desc = "很優秀的成績！只要看清楚每一步跳法，你就能拿到更高的封號喔！";
+                playSound('victory');
+            } else {
+                playSound('over');
+            }
+
+            document.getElementById('settle-pegs').innerText = pegsLeft;
+            document.getElementById('settle-moves').innerText = movesCount;
+            document.getElementById('settle-rating').innerText = ratingTitle;
+            document.getElementById('settle-eval-desc').innerText = desc;
+
+            const winIcon = document.getElementById('win-icon');
+            if (pegsLeft === 1) {
+                winIcon.innerText = "👑";
+            } else if (pegsLeft <= 3) {
+                winIcon.innerText = "🥇";
+            } else {
+                winIcon.innerText = "⭐";
+            }
+
+            openGameOverModal();
+        }
+
+        function restartGame() {
+            closeGameOverModal();
+            initBoard(currentBoardType);
+        }
+
+        function openRulesModal() {
+            playSound('select');
+            const modal = document.getElementById('rules-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('opacity-100'), 10);
+        }
+
+        function closeRulesModal() {
+            playSound('select');
+            const modal = document.getElementById('rules-modal');
+            modal.classList.remove('opacity-100');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function openGameOverModal() {
+            const modal = document.getElementById('game-over-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('opacity-100'), 10);
+        }
+
+        function closeGameOverModal() {
+            playSound('select');
+            const modal = document.getElementById('game-over-modal');
+            modal.classList.remove('opacity-100');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+            updateStats();
+        }
+
+        // Confetti burst for kid victory
+        function triggerConfetti() {
+            const container = document.getElementById('confetti-container');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < 40; i++) {
+                const conf = document.createElement('div');
+                const randomX = Math.random() * 100;
+                const randomDelay = Math.random() * 1.2;
+                const colors = ['#f43f5e', '#fbbf24', '#34d399', '#60a5fa', '#c084fc'];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                const randomSize = Math.random() * 8 + 4;
+                
+                conf.className = "absolute rounded-full pointer-events-none opacity-0";
+                conf.style.left = `${randomX}%`;
+                conf.style.bottom = `-10px`;
+                conf.style.width = `${randomSize}px`;
+                conf.style.height = `${randomSize}px`;
+                conf.style.backgroundColor = randomColor;
+                conf.style.animation = `kidsConfettiRise 2s ease-out ${randomDelay}s forwards`;
+                container.appendChild(conf);
+            }
+        }
+    </script>
+
+    <!-- Custom Kids Visual Styles & Animation -->
+    <style>
+        @keyframes kidsConfettiRise {
+            0% {
+                transform: translateY(0) scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            80% {
+                opacity: 0.9;
+            }
+            100% {
+                transform: translateY(-300px) scale(0.3) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    </style>
+
+    <script>
+        // Init Game
+        window.onload = function() {
+            initBoard('english');
+            
+            // Pop Rules Modal as Friendly Tutorial
+            setTimeout(() => {
+                openRulesModal();
+            }, 500);
+        };
+    </script>
+</body>
+</html>
