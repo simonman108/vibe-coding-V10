@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學生作業繳交檢查系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2canvas (用於網頁轉 JPG 圖片) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* 紫色 Header 漸層風格 */
+        .bg-violet-header {
+            background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+        }
+
+        .header-pill-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.2s ease;
+        }
+        .header-pill-btn:hover {
+            background-color: rgba(255, 255, 255, 0.35);
+        }
+
+        /* 黃色提示卡片 */
+        .yellow-notice-card {
+            background-color: #fef9c3;
+            border: 1px solid #fde047;
+            color: #854d0e;
+        }
+
+        /* 紫色主題按鈕 */
+        .btn-purple-solid {
+            background-color: #6366f1;
+            color: white;
+            transition: all 0.2s ease;
+        }
+        .btn-purple-solid:hover {
+            background-color: #4f46e5;
+        }
+
+        .btn-purple-outline {
+            background-color: white;
+            border: 1.5px solid #6366f1;
+            color: #4f46e5;
+            transition: all 0.2s ease;
+        }
+        .btn-purple-outline:hover {
+            background-color: #eef2ff;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 pb-16">
+
+    <!-- 頂部導覽與標題區 -->
+    <header class="bg-violet-header text-white shadow-md pb-8 pt-6 px-4 mb-6">
+        <div class="max-w-7xl mx-auto space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 class="text-2xl font-extrabold flex items-center gap-3 tracking-wide">
+                        <i class="fa-solid fa-laptop text-2xl"></i>
+                        學生作業繳交檢查系統
+                    </h1>
+                    <p class="text-indigo-100 text-xs mt-1">快速載入資料夾檔名，自動辨識班別與人數，核對繳交狀態</p>
+                </div>
+                
+                <!-- 操作按鈕區 -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <label for="folderInput" class="cursor-pointer bg-white/20 hover:bg-white/30 text-white border border-white/40 px-4 py-2.5 rounded-xl font-semibold transition-all shadow-sm flex items-center gap-2 text-sm backdrop-blur-md">
+                        <i class="fa-solid fa-folder-open"></i>
+                        <span>選擇/載入作業資料夾</span>
+                    </label>
+                    <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden" onchange="handleFolderSelect(event)">
+
+                    <!-- 下載 JPG 圖片按鈕 -->
+                    <button onclick="downloadSummaryJPG()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 text-sm">
+                        <i class="fa-solid fa-file-image"></i>
+                        <span>下載統計 JPG</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 膠囊導覽按鈕區 -->
+            <div class="flex flex-wrap gap-2 pt-2">
+                <span class="header-pill-btn text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium">
+                    <i class="fa-solid fa-house text-[11px]"></i> 首頁
+                </span>
+                <span class="header-pill-btn text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium">
+                    <i class="fa-solid fa-bolt text-[11px]"></i> 快速核對
+                </span>
+                <span class="header-pill-btn text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium">
+                    <i class="fa-solid fa-file-arrow-up text-[11px]"></i> 檔案上傳
+                </span>
+                <span class="header-pill-btn text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium">
+                    <i class="fa-solid fa-square-check text-[11px]"></i> 課堂檢測
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+
+        <!-- 本節提示訊息 -->
+        <div class="yellow-notice-card rounded-2xl p-4 shadow-sm flex items-start gap-3">
+            <i class="fa-solid fa-star text-amber-500 text-lg mt-0.5"></i>
+            <div class="text-xs space-y-1">
+                <h3 class="font-bold text-amber-900 text-sm">作業比對與班級自動識別</h3>
+                <p class="text-amber-800">提示：載入資料夾時，系統會自動辨識檔名中的班別（如 <code class="bg-amber-200/60 px-1 rounded">F5A</code>、<code class="bg-amber-200/60 px-1 rounded">F1E</code>）並自動切換班級總人數！亦可手動點擊下方按鈕切換。</p>
+            </div>
+        </div>
+
+        <!-- 設定與控制面板 -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-indigo-600"></i>
+                基本設定與班級快捷設定
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 左邊：設定與班級快速切換 -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1.5">快捷切換班級人數：</label>
+                        <div class="flex flex-wrap gap-1.5" id="classBtnGroup">
+                            <button onclick="setClassNameAndCount('F5A', 29)" data-class="F5A" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F5A (29人)</button>
+                            <button onclick="setClassNameAndCount('F5B', 30)" data-class="F5B" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F5B (30人)</button>
+                            <button onclick="setClassNameAndCount('F5C', 30)" data-class="F5C" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F5C (30人)</button>
+                            <button onclick="setClassNameAndCount('F5D', 32)" data-class="F5D" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F5D (32人)</button>
+                            <button onclick="setClassNameAndCount('F5E', 34)" data-class="F5E" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F5E (34人)</button>
+                            <button onclick="setClassNameAndCount('F5F', 33)" data-class="F5F" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F5F (33人)</button>
+                            <button onclick="setClassNameAndCount('F1B', 36)" data-class="F1B" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F1B (36人)</button>
+                            <button onclick="setClassNameAndCount('F1E', 36)" data-class="F1E" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">F1E (36人)</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">作業編號 (檔名前綴)</label>
+                            <input type="text" id="homeworkCodeInput" value="P1" placeholder="如 P1, P5..." class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50 font-semibold text-indigo-600">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">自訂總人數</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="totalStudentsInput" value="40" min="1" max="200" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+                                <button onclick="updateStudentList()" class="btn-purple-solid px-3 py-2 text-xs font-semibold rounded-xl shrink-0">更新</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">搜尋學生</label>
+                            <div class="relative">
+                                <input type="text" id="searchInput" placeholder="搜尋座號..." oninput="filterStudents()" class="w-full border border-slate-200 rounded-xl pl-8 pr-2 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右邊：名單編輯區 -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/70">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-xs font-bold text-slate-700">學生名單配置 (格式：座號 姓名)</label>
+                        <button onclick="toggleNameEditor()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1">
+                            <i class="fa-solid fa-pen-to-square"></i> 編輯名單
+                        </button>
+                    </div>
+                    <textarea id="customNameList" rows="3" class="w-full text-xs font-mono border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none hidden" placeholder="1 號張三&#10;2 號李四"></textarea>
+                    <div id="nameSummary" class="text-xs text-slate-500 space-y-1">
+                        <p>目前班級：<span id="currentClassName" class="font-bold text-indigo-600">預設班級</span></p>
+                        <p>預設名稱：<span class="font-medium text-slate-700">「1號同學」、「2號同學」...</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計數據卡片區 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- 總人數 -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500">應繳總人數</p>
+                    <h3 id="statTotal" class="text-2xl font-black text-slate-800 mt-1">40</h3>
+                </div>
+                <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+
+            <!-- 已繳人數 -->
+            <div class="bg-white p-5 rounded-2xl border border-emerald-100 bg-emerald-50/20 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-emerald-600">已交人數 (鮮綠色)</p>
+                    <h3 id="statSubmitted" class="text-2xl font-black text-emerald-600 mt-1">0</h3>
+                </div>
+                <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </div>
+
+            <!-- 欠交人數 -->
+            <div class="bg-white p-5 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-rose-600">欠交人數 (鮮紅色)</p>
+                    <h3 id="statUnsubmitted" class="text-2xl font-black text-rose-600 mt-1">40</h3>
+                </div>
+                <div class="w-10 h-10 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分類切換按鈕區 -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-700 me-1">顯示分類：</span>
+                <button onclick="setFilter('all')" id="btnFilterAll" class="btn-purple-solid px-3.5 py-1.5 text-xs font-semibold rounded-lg">全部 (40)</button>
+                <button onclick="setFilter('submitted')" id="btnFilterSubmitted" class="btn-purple-outline px-3.5 py-1.5 text-xs font-semibold rounded-lg">已交 (0)</button>
+                <button onclick="setFilter('unsubmitted')" id="btnFilterUnsubmitted" class="btn-purple-outline px-3.5 py-1.5 text-xs font-semibold rounded-lg">欠交 (40)</button>
+            </div>
+            
+            <div class="text-xs text-slate-500 flex items-center gap-4">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> 已交 (鮮綠)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> 欠交 (鮮紅)</span>
+            </div>
+        </div>
+
+        <!-- 學生卡片網格清單 (修改為大螢幕一行 10 個卡片) -->
+        <div id="studentGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
+            <!-- 動態產生學生卡片 -->
+        </div>
+
+        <!-- 檔案解析紀錄區塊 -->
+        <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+            <h2 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-indigo-500"></i>
+                已讀取檔案與比對記錄
+            </h2>
+            <div id="fileLog" class="max-h-40 overflow-y-auto bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-xs font-mono text-slate-600 space-y-1">
+                <p class="text-slate-400 italic">尚未載入任何資料夾檔案。請點擊上方「選擇/載入作業資料夾」按鈕。</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 隱藏的 JPG 導出模板 Container -->
+    <div id="exportTemplate" class="fixed -left-[9999px] top-0 w-[800px] bg-white p-8 text-slate-800 space-y-6">
+        <div class="border-b-2 border-indigo-500 pb-4 flex justify-between items-end">
+            <div>
+                <h2 class="text-2xl font-bold text-indigo-600">學生作業繳交統計報告</h2>
+                <p id="exportClassName" class="text-sm font-semibold text-slate-600 mt-1"></p>
+                <p id="exportDate" class="text-xs text-slate-400 mt-0.5"></p>
+            </div>
+            <div class="text-right">
+                <span class="bg-indigo-50 text-indigo-600 text-xs px-3 py-1 rounded-full font-bold">作業核對系統</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+                <p class="text-xs text-slate-500 font-semibold">應繳總人數</p>
+                <p id="exportTotal" class="text-2xl font-black text-slate-800 mt-1">40</p>
+            </div>
+            <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center">
+                <p class="text-xs text-emerald-600 font-semibold">已繳人數</p>
+                <p id="exportSubmitted" class="text-2xl font-black text-emerald-600 mt-1">0</p>
+            </div>
+            <div class="bg-rose-50 p-4 rounded-xl border border-rose-200 text-center">
+                <p class="text-xs text-rose-600 font-semibold">欠交人數</p>
+                <p id="exportUnsubmitted" class="text-2xl font-black text-rose-600 mt-1">40</p>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <h3 class="text-sm font-bold text-rose-600 flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-circle-xmark"></i> 欠交名單 (<span id="exportUnsubCount">0</span>人)
+                </h3>
+                <div id="exportUnsubList" class="flex flex-wrap gap-2 bg-rose-50/50 p-3 rounded-xl border border-rose-100 min-h-[48px]"></div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-bold text-emerald-600 flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-circle-check"></i> 已繳交名單 (<span id="exportSubCount">0</span>人)
+                </h3>
+                <div id="exportSubList" class="flex flex-wrap gap-2 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 min-h-[48px]"></div>
+            </div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-3 text-center text-[10px] text-slate-400">
+            本報表由學生作業繳交檢查系統自動生成
+        </div>
+    </div>
+
+    <script>
+        // 班級人數對照設定
+        const classConfig = {
+            'F5A': 29,
+            'F5B': 30,
+            'F5C': 30,
+            'F5D': 32,
+            'F5E': 34,
+            'F5F': 33,
+            'F1B': 36,
+            'F1E': 36
+        };
+
+        // 全局狀態變數
+        let totalStudents = 40;
+        let currentClassNameStr = "F5E";
+        let students = [];
+        let currentFilter = 'all';
+
+        // 初始化學生清單
+        function initStudents(count, className = "自訂班級") {
+            totalStudents = parseInt(count) || 40;
+            currentClassNameStr = className;
+            document.getElementById('currentClassName').innerText = className;
+            document.getElementById('totalStudentsInput').value = totalStudents;
+
+            students = [];
+            for (let i = 1; i <= totalStudents; i++) {
+                students.push({
+                    id: i,
+                    name: `${i}號同學`,
+                    submitted: false,
+                    fileName: ""
+                });
+            }
+            updateUI();
+        }
+
+        // 快速設定班級與人數
+        function setClassNameAndCount(className, count) {
+            initStudents(count, className);
+        }
+
+        // 更新人數設定
+        function updateStudentList() {
+            const val = document.getElementById('totalStudentsInput').value;
+            const newCount = parseInt(val);
+            if (newCount > 0) {
+                const oldStatusMap = new Map();
+                students.forEach(s => oldStatusMap.set(s.id, { submitted: s.submitted, fileName: s.fileName, name: s.name }));
+
+                totalStudents = newCount;
+                currentClassNameStr = "自訂班級";
+                document.getElementById('currentClassName').innerText = "自訂班級";
+
+                students = [];
+                for (let i = 1; i <= totalStudents; i++) {
+                    const prev = oldStatusMap.get(i);
+                    students.push({
+                        id: i,
+                        name: prev ? prev.name : `${i}號同學`,
+                        submitted: prev ? prev.submitted : false,
+                        fileName: prev ? prev.fileName : "",
+                    });
+                }
+                updateUI();
+            }
+        }
+
+        // 處理資料夾選擇 (包含自動識別班級與作業編號)
+        function handleFolderSelect(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            const fileList = Array.from(files);
+
+            // ✨ 自動分析檔名中的班別與作業編號 (例如 F5E_01_P5 ➔ 班別: F5E, 作業: P5)
+            let detectedClass = null;
+            let detectedHwCode = null;
+
+            for (let file of fileList) {
+                if (file.name.startsWith('.')) continue;
+
+                // 檢測班別
+                if (!detectedClass) {
+                    const matchClass = file.name.match(/(F5[A-F]|F1[BE])/i);
+                    if (matchClass && matchClass[1]) {
+                        detectedClass = matchClass[1].toUpperCase();
+                    }
+                }
+
+                // 檢測作業編號 (如 P1, P5, Ex1 等標記)
+                if (!detectedHwCode) {
+                    const matchHw = file.name.match(/_(P\d+|Ex\d+|HW\d+)/i);
+                    if (matchHw && matchHw[1]) {
+                        detectedHwCode = matchHw[1].toUpperCase();
+                    }
+                }
+
+                if (detectedClass && detectedHwCode) break;
+            }
+
+            // 如果檢測到班別，自動切換班級與人數
+            if (detectedClass && classConfig[detectedClass]) {
+                totalStudents = classConfig[detectedClass];
+                currentClassNameStr = detectedClass;
+                document.getElementById('currentClassName').innerText = detectedClass;
+                document.getElementById('totalStudentsInput').value = totalStudents;
+            }
+
+            // 如果檢測到作業編號，自動帶入輸入框
+            if (detectedHwCode) {
+                document.getElementById('homeworkCodeInput').value = detectedHwCode;
+            }
+
+            // 重置學生狀態與名單
+            students = [];
+            for (let i = 1; i <= totalStudents; i++) {
+                students.push({
+                    id: i,
+                    name: `${i}號同學`,
+                    submitted: false,
+                    fileName: ""
+                });
+            }
+
+            const logContainer = document.getElementById('fileLog');
+            logContainer.innerHTML = '';
+
+            if (detectedClass || detectedHwCode) {
+                const autoLog = document.createElement('div');
+                autoLog.className = 'text-indigo-600 font-bold mb-1 pb-1 border-b border-indigo-100';
+                autoLog.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles me-1"></i> [自動解析] 班級：${detectedClass || currentClassNameStr} (${totalStudents}人) | 作業編號：${detectedHwCode || document.getElementById('homeworkCodeInput').value}`;
+                logContainer.appendChild(autoLog);
+            }
+
+            let matchedCount = 0;
+
+            fileList.forEach(file => {
+                if (file.name.startsWith('.')) return;
+
+                const fileName = file.name;
+                let extractedNum = null;
+
+                const underscoreMatch = fileName.match(/_(\d{1,2})_/);
+
+                if (underscoreMatch && underscoreMatch[1]) {
+                    extractedNum = parseInt(underscoreMatch[1], 10);
+                } else {
+                    const classMatch = fileName.match(/(?:[1-6][A-Za-z]|班|甲|乙|丙|丁|戊|己|[A-Z]{1,2})[-_]?(\d{1,2})(?:號)?/i);
+
+                    if (classMatch && classMatch[1]) {
+                        extractedNum = parseInt(classMatch[1], 10);
+                    } else {
+                        const generalMatch = fileName.match(/(?:號|座號)?(\d{1,2})(?:號)?/);
+                        if (generalMatch && generalMatch[1]) {
+                            extractedNum = parseInt(generalMatch[1], 10);
+                        }
+                    }
+                }
+
+                let matchedStudent = null;
+                if (extractedNum && extractedNum >= 1 && extractedNum <= totalStudents) {
+                    matchedStudent = students.find(s => s.id === extractedNum);
+                }
+
+                if (matchedStudent) {
+                    matchedStudent.submitted = true;
+                    matchedStudent.fileName = fileName;
+                    matchedCount++;
+
+                    const logItem = document.createElement('div');
+                    logItem.className = 'text-emerald-600 font-semibold';
+                    logItem.innerHTML = `<i class="fa-solid fa-check me-1"></i> [匹配成功] 檔案: "${fileName}" ➔ 歸屬: ${matchedStudent.id}號 (${matchedStudent.name})`;
+                    logContainer.appendChild(logItem);
+                } else {
+                    const logItem = document.createElement('div');
+                    logItem.className = 'text-slate-400';
+                    logItem.innerHTML = `<i class="fa-solid fa-circle-question me-1"></i> [無法歸類] 檔案: "${fileName}"`;
+                    logContainer.appendChild(logItem);
+                }
+            });
+
+            if (matchedCount === 0) {
+                const logItem = document.createElement('div');
+                logItem.className = 'text-rose-500 font-bold mt-1';
+                logItem.innerText = '⚠️ 提示：資料夾內未發現符合座號格式的檔案，請檢查檔案名稱。';
+                logContainer.prepend(logItem);
+            }
+
+            updateUI();
+        }
+
+        // 切換學生繳交狀態
+        function toggleStatus(studentId) {
+            const student = students.find(s => s.id === studentId);
+            if (student) {
+                student.submitted = !student.submitted;
+                if (!student.submitted) student.fileName = "";
+                updateUI();
+            }
+        }
+
+        // 切換篩選器
+        function setFilter(filter) {
+            currentFilter = filter;
+            
+            const btnAll = document.getElementById('btnFilterAll');
+            const btnSub = document.getElementById('btnFilterSubmitted');
+            const btnUnsub = document.getElementById('btnFilterUnsubmitted');
+
+            btnAll.className = filter === 'all' ? 'btn-purple-solid px-3.5 py-1.5 text-xs font-semibold rounded-lg' : 'btn-purple-outline px-3.5 py-1.5 text-xs font-semibold rounded-lg';
+            btnSub.className = filter === 'submitted' ? 'btn-purple-solid px-3.5 py-1.5 text-xs font-semibold rounded-lg' : 'btn-purple-outline px-3.5 py-1.5 text-xs font-semibold rounded-lg';
+            btnUnsub.className = filter === 'unsubmitted' ? 'btn-purple-solid px-3.5 py-1.5 text-xs font-semibold rounded-lg' : 'btn-purple-outline px-3.5 py-1.5 text-xs font-semibold rounded-lg';
+
+            renderGrid();
+        }
+
+        // 搜尋過濾
+        function filterStudents() {
+            renderGrid();
+        }
+
+        // 編輯學生姓名 Toggle
+        function toggleNameEditor() {
+            const textarea = document.getElementById('customNameList');
+            if (textarea.classList.contains('hidden')) {
+                textarea.value = students.map(s => `${s.id} ${s.name}`).join('\n');
+                textarea.classList.remove('hidden');
+            } else {
+                const lines = textarea.value.split('\n');
+                lines.forEach(line => {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length >= 2) {
+                        const id = parseInt(parts[0]);
+                        const name = parts.slice(1).join(' ');
+                        const student = students.find(s => s.id === id);
+                        if (student) student.name = name;
+                    }
+                });
+                textarea.classList.add('hidden');
+                updateUI();
+            }
+        }
+
+        // 更新介面數據
+        function updateUI() {
+            const submittedCount = students.filter(s => s.submitted).length;
+            const unsubmittedCount = totalStudents - submittedCount;
+
+            document.getElementById('statTotal').innerText = totalStudents;
+            document.getElementById('statSubmitted').innerText = submittedCount;
+            document.getElementById('statUnsubmitted').innerText = unsubmittedCount;
+
+            document.getElementById('btnFilterAll').innerText = `全部 (${totalStudents})`;
+            document.getElementById('btnFilterSubmitted').innerText = `已交 (${submittedCount})`;
+            document.getElementById('btnFilterUnsubmitted').innerText = `欠交 (${unsubmittedCount})`;
+
+            renderGrid();
+        }
+
+        // 渲染學生卡片（已交為鮮綠色，欠交為明顯鮮紅色卡片）
+        function renderGrid() {
+            const grid = document.getElementById('studentGrid');
+            const searchKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            grid.innerHTML = '';
+
+            const filteredStudents = students.filter(student => {
+                if (currentFilter === 'submitted' && !student.submitted) return false;
+                if (currentFilter === 'unsubmitted' && student.submitted) return false;
+
+                if (searchKeyword) {
+                    const matchesId = student.id.toString().includes(searchKeyword);
+                    const matchesName = student.name.toLowerCase().includes(searchKeyword);
+                    return matchesId || matchesName;
+                }
+                return true;
+            });
+
+            if (filteredStudents.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-8 text-center text-slate-400 text-xs">
+                        <i class="fa-regular fa-folder-open text-3xl mb-2 block"></i>
+                        沒有找到符合條件的學生資料
+                    </div>
+                `;
+                return;
+            }
+
+            filteredStudents.forEach(student => {
+                const card = document.createElement('div');
+                card.onclick = () => toggleStatus(student.id);
+
+                if (student.submitted) {
+                    // 已交卡片：鮮綠色實心背景 (bg-emerald-500)
+                    card.className = `
+                        cursor-pointer transition-all duration-200 transform hover:-translate-y-1
+                        bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl p-2.5 shadow-sm hover:shadow-md
+                        border border-emerald-400 flex flex-col justify-between relative overflow-hidden group
+                    `;
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-[10px] font-extrabold bg-white/20 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                                ${student.id < 10 ? '0' + student.id : student.id}
+                            </span>
+                            <span class="text-white text-xs">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </span>
+                        </div>
+                        <div class="my-0.5">
+                            <h4 class="font-bold text-xs text-white truncate">${student.name}</h4>
+                            <p class="text-emerald-100 text-[10px] font-semibold">已繳交</p>
+                        </div>
+                        ${student.fileName ? `
+                            <div class="mt-1 pt-1 border-t border-emerald-400/40 text-[9px] text-emerald-100 truncate font-mono" title="${student.fileName}">
+                                <i class="fa-solid fa-file me-0.5 text-white"></i>${student.fileName}
+                            </div>
+                        ` : ''}
+                    `;
+                } else {
+                    // 欠交卡片：高對比鮮紅色實心背景 (bg-rose-500)
+                    card.className = `
+                        cursor-pointer transition-all duration-200 transform hover:-translate-y-1
+                        bg-rose-500 hover:bg-rose-600 text-white rounded-xl p-2.5 shadow-sm hover:shadow-md
+                        border border-rose-400 flex flex-col justify-between relative overflow-hidden group
+                    `;
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-[10px] font-extrabold bg-white/20 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                                ${student.id < 10 ? '0' + student.id : student.id}
+                            </span>
+                            <span class="text-white text-xs">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </span>
+                        </div>
+                        <div class="my-0.5">
+                            <h4 class="font-bold text-xs text-white truncate">${student.name}</h4>
+                            <p class="text-rose-100 text-[10px] font-semibold">未繳交</p>
+                        </div>
+                        <div class="mt-1 pt-1 border-t border-rose-400/40 text-[9px] text-rose-100 italic truncate">
+                            點擊設已交
+                        </div>
+                    `;
+                }
+
+                grid.appendChild(card);
+            });
+        }
+
+        // 下載統計 JPG (檔案名稱格式改為: 班別_作業編號.jpg，例如: F5E_P5.jpg)
+        function downloadSummaryJPG() {
+            const submittedList = students.filter(s => s.submitted);
+            const unsubmittedList = students.filter(s => !s.submitted);
+            const hwCode = (document.getElementById('homeworkCodeInput').value.trim() || "P1").toUpperCase();
+
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            document.getElementById('exportClassName').innerText = `班級：${currentClassNameStr} (${hwCode})`;
+            document.getElementById('exportDate').innerText = `統計時間：${dateStr}`;
+
+            document.getElementById('exportTotal').innerText = totalStudents;
+            document.getElementById('exportSubmitted').innerText = submittedList.length;
+            document.getElementById('exportUnsubmitted').innerText = unsubmittedList.length;
+
+            document.getElementById('exportSubCount').innerText = submittedList.length;
+            document.getElementById('exportUnsubCount').innerText = unsubmittedList.length;
+
+            const unsubContainer = document.getElementById('exportUnsubList');
+            if (unsubmittedList.length === 0) {
+                unsubContainer.innerHTML = `<span class="text-xs text-slate-400 italic">無欠交同學 (全員已繳交 🎉)</span>`;
+            } else {
+                unsubContainer.innerHTML = unsubmittedList.map(s => `
+                    <span class="bg-rose-100 text-rose-800 font-medium text-xs px-2.5 py-1 rounded-lg border border-rose-200">
+                        ${s.id < 10 ? '0' + s.id : s.id}. ${s.name}
+                    </span>
+                `).join('');
+            }
+
+            const subContainer = document.getElementById('exportSubList');
+            if (submittedList.length === 0) {
+                subContainer.innerHTML = `<span class="text-xs text-slate-400 italic">尚無學生繳交</span>`;
+            } else {
+                subContainer.innerHTML = submittedList.map(s => `
+                    <span class="bg-emerald-100 text-emerald-800 font-medium text-xs px-2.5 py-1 rounded-lg border border-emerald-200">
+                        ${s.id < 10 ? '0' + s.id : s.id}. ${s.name}
+                    </span>
+                `).join('');
+            }
+
+            const exportElement = document.getElementById('exportTemplate');
+            exportElement.style.position = 'absolute';
+            exportElement.style.left = '0px';
+            exportElement.style.top = '0px';
+            exportElement.style.zIndex = '-9999';
+
+            html2canvas(exportElement, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff'
+            }).then(canvas => {
+                exportElement.style.position = 'fixed';
+                exportElement.style.left = '-9999px';
+
+                const link = document.createElement('a');
+                // ✨ 將匯出檔名改為： 班別_作業編號 (例：F5E_P5.jpg)
+                link.download = `${currentClassNameStr}_${hwCode}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 0.92);
+                link.click();
+            }).catch(err => {
+                console.error("生成圖片失敗：", err);
+                alert("生成 JPG 圖片失敗，請重試！");
+                exportElement.style.position = 'fixed';
+                exportElement.style.left = '-9999px';
+            });
+        }
+
+        window.onload = function() {
+            initStudents(29, "F5A");
+        };
+    </script>
+</body>
+</html>
