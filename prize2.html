@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社區消費大獎賞 - Python 抽獎模擬器</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2canvas for Exporting Card as Image -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- Pyodide Python Runner -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <!-- Prism.js for OnlineGDB Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Fredoka:wght@500;600;700&family=Fira+Code:wght@400;500;600&family=Libre+Barcode+128&display=swap');
+    
+    body {
+      font-family: 'Fredoka', 'Noto Sans TC', sans-serif;
+      background-color: #0b7285;
+    }
+    
+    .font-mono-code {
+      font-family: 'Fira Code', Consolas, Monaco, monospace;
+    }
+    
+    .font-barcode {
+      font-family: 'Libre Barcode 128', cursive;
+    }
+
+    /* Macau Community Consumption Reward Poster Visual Palette */
+    .warm-bg-pattern {
+      background-color: #0e8296;
+      background-image: 
+        radial-gradient(circle at 80% 20%, rgba(254, 224, 0, 0.25), transparent 45%),
+        radial-gradient(circle at 10% 80%, rgba(236, 72, 153, 0.2), transparent 45%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+    }
+
+    /* Poster Soft Shadows & Vibrant Borders */
+    .warm-shadow {
+      box-shadow: 0 10px 25px -5px rgba(6, 78, 92, 0.4), 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* OnlineGDB Editor Overlay Styling */
+    .gdb-editor-wrapper {
+      position: relative;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Fira Code', Consolas, Monaco, monospace;
+    }
+
+    /* Standardized typography for text area and highlight code layer */
+    .gdb-code-target {
+      font-family: 'Fira Code', Consolas, Monaco, monospace !important;
+      line-height: 1.6 !important;
+      tab-size: 4 !important;
+      -moz-tab-size: 4 !important;
+      white-space: pre !important;
+      word-wrap: normal !important;
+      word-break: normal !important;
+      margin: 0 !important;
+      padding: 16px !important;
+      border: 0 !important;
+      box-sizing: border-box !important;
+    }
+
+    /* Prism Highlighting Layer */
+    #highlightLayer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      background: transparent !important;
+    }
+
+    #highlightCode {
+      background: transparent !important;
+      color: #d4d4d4;
+    }
+
+    /* Textarea Input Layer */
+    #pythonCode {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 580px;
+      background: transparent;
+      color: transparent;
+      caret-color: #ffffff;
+      resize: vertical;
+      outline: none;
+      z-index: 10;
+    }
+
+    /* OnlineGDB Specific Prism Colors Override */
+    .token.keyword { color: #569cd6 !important; font-weight: bold; }
+    .token.builtin { color: #4ec9b0 !important; }
+    .token.function { color: #dcdcaa !important; }
+    .token.number { color: #b5cea8 !important; }
+    .token.string { color: #ce9178 !important; }
+    .token.comment { color: #6a9955 !important; font-style: italic; }
+    .token.operator { color: #d4d4d4 !important; }
+    .token.punctuation { color: #d4d4d4 !important; }
+
+    /* Custom Scrollbar for Code Editor */
+    textarea::-webkit-scrollbar, #highlightLayer::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    textarea::-webkit-scrollbar-thumb {
+      background: #3e3e42;
+      border-radius: 5px;
+    }
+    textarea::-webkit-scrollbar-track {
+      background: #1e1e1e;
+    }
+
+    /* Dynamic Receipt Print Animation */
+    @keyframes printReceipt {
+      0% {
+        opacity: 0;
+        transform: translateY(-25px) scale(0.92);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .receipt-print-anim {
+      animation: printReceipt 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+  </style>
+</head>
+<body class="warm-bg-pattern text-stone-100 min-h-screen pb-12">
+
+<body class="warm-bg-pattern text-slate-800 min-h-screen pb-12">
+
+  <!-- Header Section with Macau Community Reward Poster Style -->
+  <header class="bg-gradient-to-r from-[#0284c7] via-[#0891b2] to-[#0d9488] text-white shadow-xl border-b-4 border-yellow-400 relative overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3 relative z-10">
+      <div class="flex items-center gap-3">
+        <span class="bg-yellow-400 text-rose-700 w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-lg transform -rotate-3 border-2 border-white font-black animate-bounce">
+          🎁
+        </span>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="bg-yellow-300 text-teal-950 text-[11px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-yellow-100 shadow-sm">
+              🇲🇴 澳門社區消費大獎賞
+            </span>
+          </div>
+          <h1 class="text-xl md:text-2xl font-black tracking-wide mt-0.5 text-yellow-300 drop-shadow-md">社區消費大獎賞：Python 模擬抽電子優惠</h1>
+        </div>
+      </div>
+      <span class="text-xs bg-teal-950/60 text-yellow-300 border-2 border-yellow-300/80 font-mono px-4 py-1.5 rounded-full backdrop-blur-md font-bold shadow-md flex items-center gap-1.5">
+        🎉 官方活動同款色調
+      </span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 mt-6 space-y-6">
+
+    <!-- Step 0: Student Info Selection -->
+    <section class="bg-sky-50/95 backdrop-blur-md p-5 rounded-3xl shadow-xl border-4 border-yellow-400 relative overflow-hidden warm-shadow">
+      
+      <h2 class="text-base font-black text-teal-900 mb-3 flex items-center gap-2">
+        <span class="bg-gradient-to-r from-fuchsia-600 to-pink-500 text-white w-7 h-7 rounded-xl inline-flex items-center justify-center text-xs font-black shadow border border-white">0</span>
+        學生身份與作業選擇 📚
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+        <div>
+          <label class="block text-xs font-bold text-teal-900 mb-1.5">選擇班級</label>
+          <select id="classSelect" class="w-full p-2.5 bg-white border-2 border-teal-300 rounded-2xl text-sm font-bold text-teal-950 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 focus:outline-none transition">
+            <option value="F5A">F5A</option>
+            <option value="F5B">F5B</option>
+            <option value="F5C">F5C</option>
+            <option value="F5D">F5D</option>
+            <option value="F5E">F5E</option>
+            <option value="F5F">F5F</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-teal-900 mb-1.5">選擇學號 (1 ~ 38)</label>
+          <select id="seatSelect" class="w-full p-2.5 bg-white border-2 border-teal-300 rounded-2xl text-sm font-bold text-teal-950 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 focus:outline-none transition">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-teal-900 mb-1.5">作業編號 (已鎖定)</label>
+          <select id="assignmentSelect" disabled class="w-full p-2.5 bg-slate-200 border-2 border-slate-300 rounded-2xl text-sm font-black text-slate-500 cursor-not-allowed focus:outline-none">
+            <!-- Populated via JS (P6) -->
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 1: Real Situation Experience -->
+    <section class="bg-sky-50/95 backdrop-blur-md p-5 rounded-3xl shadow-xl border-4 border-teal-300 warm-shadow">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-black text-teal-950 flex items-center gap-2">
+          <span class="bg-gradient-to-r from-fuchsia-600 to-pink-500 text-white w-7 h-7 rounded-xl inline-flex items-center justify-center text-xs font-black shadow border border-white">1</span>
+          情境體驗：社區消費大獎賞抽獎器 (MOP) 🎟️
+        </h2>
+        <span class="text-xs bg-lime-500 text-teal-950 font-black px-3 py-1 rounded-full border border-lime-300 flex items-center gap-1 shadow">
+          ✨ 抽取電子優惠 3 次
+        </span>
+      </div>
+
+      <p class="text-teal-900 text-xs md:text-sm mb-4 font-bold">
+        週五至週日消費滿 MOP 50 元即可參加抽獎！隨機抽出 3 次電子優惠（面額：10、20、50、100、200 元）。
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="block text-xs font-bold text-teal-900 mb-1.5">請輸入消費金額 (MOP)：</label>
+          <input type="number" id="spendInput" min="0" value="68" placeholder="例如：68" class="w-full p-2.5 bg-white border-2 border-teal-400 rounded-2xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 focus:outline-none transition">
+        </div>
+        <div class="flex items-end">
+          <button onclick="calculateLuckyDraw()" class="w-full bg-gradient-to-r from-lime-500 via-emerald-500 to-teal-600 hover:from-lime-400 hover:to-teal-500 active:scale-[0.99] text-teal-950 font-black px-5 py-3 rounded-2xl transition text-sm flex items-center justify-center gap-2 shadow-lg border-b-4 border-teal-800">
+            <i class="fa-solid fa-gift text-teal-950 text-base"></i>
+            測試 1：開啟幸運抽獎
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Receipt Visual Output Poster Styled -->
+      <div id="resultBox1" class="hidden flex justify-center py-6 bg-teal-950/80 rounded-3xl shadow-inner overflow-hidden border-2 border-teal-300">
+        <div id="receiptCard" class="receipt-print-anim w-full max-w-sm bg-gradient-to-b from-yellow-300 via-amber-100 to-white text-slate-900 rounded-3xl p-6 shadow-2xl relative border-t-8 border-fuchsia-600 font-mono">
+          
+          <!-- Receipt Header -->
+          <div class="text-center border-b-2 border-dashed border-fuchsia-400/60 pb-4 mb-4">
+            <div class="flex justify-center items-center gap-2 text-fuchsia-900 font-black text-lg">
+              <span>🎁 大獎賞 電子優惠明細 🎁</span>
+            </div>
+            <p class="text-[11px] text-teal-950 font-black tracking-widest mt-1">澳門社區消費大獎賞 抽獎聯</p>
+            <p class="text-[10px] text-slate-500 mt-1" id="receiptTime">2026-11-12 12:00:00</p>
+          </div>
+
+          <!-- Items Table -->
+          <div class="space-y-2.5 text-xs" id="receiptContent">
+            <!-- Dynamic Content populated via JS -->
+          </div>
+
+          <!-- Barcode Footer -->
+          <div class="mt-6 pt-4 border-t-2 border-dashed border-fuchsia-400/60 text-center space-y-1">
+            <div class="text-3xl tracking-wider text-teal-950 font-barcode">||| | ||||| ||| ||| ||||</div>
+            <p class="text-[10px] text-teal-900 font-sans font-bold">🎉 祝您消費愉快，幸運抽中大獎！</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2: OnlineGDB Style Python Editor -->
+    <section class="bg-sky-50/95 backdrop-blur-md p-5 rounded-3xl shadow-xl border-4 border-teal-300 warm-shadow">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-black text-teal-950 flex items-center gap-2">
+          <span class="bg-gradient-to-r from-fuchsia-600 to-pink-500 text-white w-7 h-7 rounded-xl inline-flex items-center justify-center text-xs font-black shadow border border-white">2</span>
+          自主挑戰：撰寫 Python 程式碼 💻
+        </h2>
+        <span id="pyodideStatus" class="text-xs bg-teal-900 text-yellow-300 font-bold px-3 py-1 rounded-full flex items-center gap-1.5 border border-teal-700">
+          <i class="fa-solid fa-spinner animate-spin"></i> Python 引擎載入中...
+        </span>
+      </div>
+
+      <!-- 常駐顯示在輸入框上方的編程提示卡片 -->
+      <div class="bg-gradient-to-r from-fuchsia-900 to-rose-900 border-l-4 border-yellow-400 p-4 rounded-r-2xl mb-4 text-xs md:text-sm text-yellow-100 space-y-1.5 shadow-md">
+        <p class="font-black text-yellow-300 flex items-center gap-2 text-sm">
+          📋 題目背景與程式要求 (澳門幣 MOP)：
+        </p>
+        <p class="text-xs text-white font-medium">
+          澳門「社區消費大獎賞」規定：週五至週日消費滿 50 元，就可以抽 3 次電子優惠。優惠面額有 10、20、50、100、200 元五種。
+        </p>
+        <ul class="list-disc list-inside space-y-1 text-yellow-200 font-mono text-xs pl-1">
+          <li>1. 先輸入消費金額，用 <code class="bg-yellow-400/30 px-1.5 py-0.5 rounded text-yellow-300 font-bold">if</code> 判斷是否滿 50 元。</li>
+          <li>2. 不滿 50 元就提示「消費未滿 50 元，不能抽獎」，程式結束。</li>
+          <li>3. 滿 50 元則用 <code class="bg-yellow-400/30 px-1.5 py-0.5 rounded text-yellow-300 font-bold">while</code> 讓他抽 3 次。</li>
+          <li>4. 每次用 <code class="bg-yellow-400/30 px-1.5 py-0.5 rounded text-yellow-300 font-bold">random.choice([10, 20, 50, 100, 200])</code> 隨機抽出五種面額之一並印出。</li>
+          <li>5. 最後印出共抽到多少元優惠。</li>
+        </ul>
+      </div>
+
+      <!-- OnlineGDB Style IDE Window -->
+      <div class="rounded-3xl overflow-hidden border-2 border-slate-700 shadow-2xl bg-[#1e1e1e]">
+        
+        <!-- OnlineGDB Header Toolbar -->
+        <div class="bg-[#2d2d2d] px-4 py-2.5 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <!-- OnlineGDB Green Run Button -->
+            <button id="test2Btn" onclick="testPythonCode()" disabled class="bg-gradient-to-r from-lime-500 to-emerald-600 hover:from-lime-400 hover:to-emerald-500 active:scale-95 disabled:opacity-40 text-teal-950 font-black text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition cursor-pointer shadow-md border-b-2 border-emerald-800">
+              <i class="fa-solid fa-play text-xs"></i> Run (測試 2)
+            </button>
+            <!-- Clear Button -->
+            <button onclick="clearEditor()" class="bg-[#3e3e42] hover:bg-[#4e4e52] text-slate-200 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-rotate-left"></i> 重置程式碼
+            </button>
+            <span class="text-xs text-yellow-300/80 font-mono hidden sm:inline ml-2">OnlineGDB Python Debugger</span>
+          </div>
+
+          <!-- Font Size Controls -->
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400 font-medium">字體:</span>
+            <button onclick="changeFontSize(-2)" class="bg-[#3e3e42] hover:bg-[#4e4e52] text-slate-200 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs transition" title="縮小字體">
+              <i class="fa-solid fa-minus"></i>
+            </button>
+            <span id="fontSizeDisplay" class="text-xs font-mono text-yellow-300 min-w-[36px] text-center font-bold">22px</span>
+            <button onclick="changeFontSize(2)" class="bg-[#3e3e42] hover:bg-[#4e4e52] text-slate-200 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs transition" title="放大字體">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- OnlineGDB Editor Workspace -->
+        <div class="relative flex min-h-[580px] bg-[#1e1e1e]">
+          <!-- Line Numbers Column -->
+          <div id="lineNumbers" class="w-12 bg-[#252526] text-[#858585] font-mono text-right pr-3 pt-4 select-none border-r border-[#333333] flex-shrink-0" style="font-size: 22px; line-height: 1.6;">
+            1
+          </div>
+
+          <!-- Code Overlay Container -->
+          <div class="relative flex-1 overflow-hidden gdb-editor-wrapper">
+            <!-- Syntax Highlighting Layer -->
+            <pre id="highlightLayer" aria-hidden="true" class="gdb-code-target"><code id="highlightCode" class="language-python gdb-code-target"></code></pre>
+
+            <!-- Textarea Input Layer -->
+            <textarea id="pythonCode" onfocus="autoSetFontSize(24)" oninput="handleEditorInput()" onkeydown="handleKeyDown(event)" onscroll="syncScroll()" class="gdb-code-target" style="font-size: 22px; line-height: 1.6;" spellcheck="false">import random
+
+money = int(input("消費金額："))
+
+# 請在下方寫出 if / else 與 while 抽獎邏輯
+</textarea>
+          </div>
+        </div>
+
+        <!-- OnlineGDB Console / Terminal Panel -->
+        <div id="consoleContainer" class="border-t border-[#333333] bg-[#1e1e1e] p-4 font-mono">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-[#333333]">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <i class="fa-solid fa-terminal text-yellow-400"></i> Console Output (測試結果)
+            </span>
+            <span id="test2StatusText" class="text-xs font-medium text-slate-400">
+              尚未進行測試 2
+            </span>
+          </div>
+          <!-- Test Output Log -->
+          <div id="testOutputArea" class="text-sm text-slate-200 min-h-[70px] max-h-60 overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
+            <span class="text-slate-500 text-xs">點擊上方綠色「Run (測試 2)」按鈕，系統將自動輸入多組測試案例驗證抽獎邏輯...</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Step 3: Export Result as Image -->
+    <section id="exportSection" class="bg-sky-50/95 backdrop-blur-md p-5 rounded-3xl shadow-xl border-4 border-yellow-400 warm-shadow">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-black text-teal-950 flex items-center gap-2">
+          <span class="bg-gradient-to-r from-fuchsia-600 to-pink-500 text-white w-7 h-7 rounded-xl inline-flex items-center justify-center text-xs font-black shadow border border-white">3</span>
+          匯出學習成果卡片 📸
+        </h2>
+      </div>
+
+      <p class="text-teal-900 text-xs md:text-sm mb-4 font-bold">
+        完成「測試 2」驗證成功後，點擊下方「輸出圖檔」按鈕，即可將你的活動海報同款風格學習成果卡片儲存為圖片檔！
+      </p>
+
+      <!-- Printable Certificate/Card Container -->
+      <div class="overflow-x-auto pb-2">
+        <div id="captureCard" class="bg-gradient-to-br from-teal-900 via-sky-950 to-fuchsia-950 border-4 border-yellow-300 p-6 rounded-3xl min-w-[500px] max-w-2xl mx-auto shadow-2xl relative text-white">
+          <!-- Card Header -->
+          <div class="flex justify-between items-start border-b border-teal-500/40 pb-4 mb-4">
+            <div>
+              <span class="text-xs font-black uppercase tracking-wider text-teal-950 bg-yellow-300 px-3 py-0.5 rounded-full border border-yellow-200 shadow">大獎賞 學習成果卡 🎁</span>
+              <h3 class="text-xl font-black text-yellow-300 mt-1.5 flex items-center gap-2">
+                🇲🇴 題目：社區消費大獎賞 (模擬抽電子優惠)
+              </h3>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-black bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white px-3 py-1 rounded-xl inline-block shadow-md border border-white">
+                學生：<span id="cardStudentId">F5A_01_P6</span>
+              </div>
+              <div class="text-xs text-yellow-200 mt-1 font-mono" id="cardDate">2026-11-12</div>
+            </div>
+          </div>
+
+          <!-- Card Body -->
+          <div class="space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-3 bg-teal-950/80 p-3.5 rounded-2xl border border-teal-500/40">
+              <div>
+                <span class="text-sky-300 text-xs font-bold">測試 1 輸入金額：</span>
+                <p class="font-bold text-yellow-300 text-xs mt-0.5">
+                  MOP <span id="cardSpendAmount">68</span>
+                </p>
+              </div>
+              <div>
+                <span class="text-sky-300 text-xs font-bold">抽獎結果狀態：</span>
+                <p class="font-black text-lime-400 text-base" id="cardDrawResult">成功抽獎 3 次</p>
+              </div>
+            </div>
+
+            <div>
+              <span class="text-xs font-bold text-yellow-300 block mb-1">自訂 Python 程式碼 (OnlineGDB)：</span>
+              <pre id="cardCodeDisplay" class="bg-[#1e1e1e] text-yellow-300 p-3.5 rounded-2xl text-xs font-mono-code overflow-x-auto min-h-[80px] border border-teal-500/40"># 尚未測試完成</pre>
+            </div>
+
+            <div class="flex justify-between items-center bg-fuchsia-950/80 border border-yellow-300/40 p-3 rounded-2xl">
+              <span class="text-xs font-bold text-yellow-300 flex items-center gap-2">
+                <i class="fa-solid fa-circle-check text-lime-400 text-sm"></i>
+                程式測試狀態：<span id="cardStatus">等待測試 2</span>
+              </span>
+              <span class="text-[10px] text-yellow-200/80 font-mono">Verified by Pyodide Engine</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Action Button -->
+      <div class="mt-6 text-center">
+        <button id="exportBtn" onclick="exportCardImage()" disabled class="bg-gradient-to-r from-lime-500 via-teal-500 to-fuchsia-600 hover:from-lime-400 hover:to-fuchsia-500 border-b-4 border-teal-800 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-teal-950 font-black px-8 py-3 rounded-2xl transition inline-flex items-center gap-2 shadow-xl">
+          <i class="fa-solid fa-file-image"></i>
+          輸出圖檔 (<span id="exportFileName">F5A_01_P6.png</span>)
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Message Box Modal -->
+  <div id="msgModal" class="fixed inset-0 bg-teal-950/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border-4 border-yellow-400 text-center space-y-4">
+      <div id="modalIcon" class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl"></div>
+      <h3 id="modalTitle" class="text-lg font-black text-slate-800"></h3>
+      <p id="modalMessage" class="text-sm font-medium text-slate-600"></p>
+      <button onclick="closeModal()" class="w-full py-2.5 bg-gradient-to-r from-lime-500 to-teal-600 text-teal-950 font-black rounded-2xl text-sm transition shadow-md border-b-4 border-teal-800">
+        確定
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let pyodide = null;
+    let isTest2Passed = false;
+    let currentFontSize = 22;
+
+    // Initialize Page
+    window.onload = async function() {
+      populateSeatNumbers();
+      populateAssignmentNumbers();
+      updateCardInfo();
+      handleEditorInput();
+      
+      const now = new Date();
+      document.getElementById('cardDate').innerText = now.toISOString().split('T')[0];
+
+      document.getElementById('classSelect').addEventListener('change', updateCardInfo);
+      document.getElementById('seatSelect').addEventListener('change', updateCardInfo);
+      document.getElementById('assignmentSelect').addEventListener('change', updateCardInfo);
+
+      // Load Pyodide Engine
+      try {
+        pyodide = await loadPyodide();
+        const pyStatus = document.getElementById('pyodideStatus');
+        pyStatus.className = "text-xs bg-amber-100 text-amber-800 font-bold px-3 py-1 rounded-full flex items-center gap-1.5 border border-amber-300";
+        pyStatus.innerHTML = '<i class="fa-solid fa-circle-check text-amber-600"></i> Python 引擎就緒';
+        document.getElementById('test2Btn').disabled = false;
+      } catch (err) {
+        console.error("Pyodide Fail:", err);
+        const pyStatus = document.getElementById('pyodideStatus');
+        pyStatus.className = "text-xs bg-rose-100 text-rose-800 font-bold px-3 py-1 rounded-full border border-rose-200";
+        pyStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 引擎載入失敗，請重新整理';
+      }
+    };
+
+    // Font Size Controls
+    function changeFontSize(delta) {
+      currentFontSize = Math.max(14, Math.min(32, currentFontSize + delta));
+      applyFontSize(currentFontSize);
+    }
+
+    function autoSetFontSize(targetSize) {
+      if (currentFontSize !== targetSize) {
+        currentFontSize = targetSize;
+        applyFontSize(currentFontSize);
+      }
+    }
+
+    function applyFontSize(size) {
+      document.getElementById('fontSizeDisplay').innerText = `${size}px`;
+      
+      const textarea = document.getElementById('pythonCode');
+      const highlightLayer = document.getElementById('highlightLayer');
+      const lineNumbers = document.getElementById('lineNumbers');
+      
+      textarea.style.fontSize = `${size}px`;
+      highlightLayer.style.fontSize = `${size}px`;
+      lineNumbers.style.fontSize = `${size}px`;
+
+      handleEditorInput();
+    }
+
+    // Handle Input & Live Highlighting
+    function handleEditorInput() {
+      const textarea = document.getElementById('pythonCode');
+      const highlightCode = document.getElementById('highlightCode');
+      
+      let text = textarea.value;
+      if (text.endsWith('\n')) {
+        text += ' ';
+      }
+
+      highlightCode.innerHTML = Prism.highlight(text, Prism.languages.python, 'python');
+      updateLineNumbers();
+      syncScroll();
+    }
+
+    function updateLineNumbers() {
+      const textarea = document.getElementById('pythonCode');
+      const lineNumbers = document.getElementById('lineNumbers');
+      const lines = textarea.value.split('\n').length;
+      
+      const totalDisplayLines = Math.max(lines, 20);
+      let lineNumHTML = '';
+      for (let i = 1; i <= totalDisplayLines; i++) {
+        lineNumHTML += `${i}<br>`;
+      }
+      lineNumbers.innerHTML = lineNumHTML;
+    }
+
+    function syncScroll() {
+      const textarea = document.getElementById('pythonCode');
+      const highlightLayer = document.getElementById('highlightLayer');
+      const lineNumbers = document.getElementById('lineNumbers');
+      
+      highlightLayer.scrollTop = textarea.scrollTop;
+      highlightLayer.scrollLeft = textarea.scrollLeft;
+      lineNumbers.scrollTop = textarea.scrollTop;
+    }
+
+    // Allow Tab key inside textarea
+    function handleKeyDown(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const textarea = e.target;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+
+        textarea.value = textarea.value.substring(0, start) + "    " + textarea.value.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+
+        handleEditorInput();
+      }
+    }
+
+    function clearEditor() {
+      const textarea = document.getElementById('pythonCode');
+      textarea.value = `import random\n\nmoney = int(input("消費金額："))\n\n# 請在下方寫出 if / else 與 while 抽獎邏輯\n`;
+      handleEditorInput();
+    }
+
+    function populateSeatNumbers() {
+      const select = document.getElementById('seatSelect');
+      select.innerHTML = '';
+      for (let i = 1; i <= 38; i++) {
+        const val = i < 10 ? `0${i}` : `${i}`;
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = `${i} 號 (${val})`;
+        select.appendChild(opt);
+      }
+    }
+
+    function populateAssignmentNumbers() {
+      const select = document.getElementById('assignmentSelect');
+      select.innerHTML = '';
+      const opt = document.createElement('option');
+      opt.value = 'P6';
+      opt.textContent = '作業 6';
+      opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    function getStudentId() {
+      const className = document.getElementById('classSelect').value;
+      const seatNo = document.getElementById('seatSelect').value;
+      const assignment = document.getElementById('assignmentSelect').value;
+      return `${className}_${seatNo}_${assignment}`;
+    }
+
+    function updateCardInfo() {
+      const studentId = getStudentId();
+      document.getElementById('cardStudentId').innerText = studentId;
+      document.getElementById('exportFileName').innerText = `${studentId}.png`;
+    }
+
+    function showModal(title, msg, type = 'info') {
+      const modal = document.getElementById('msgModal');
+      const icon = document.getElementById('modalIcon');
+      document.getElementById('modalTitle').innerText = title;
+      document.getElementById('modalMessage').innerText = msg;
+
+      if (type === 'success') {
+        icon.className = 'w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-lime-100 text-teal-800 border-2 border-lime-300';
+        icon.innerHTML = '<i class="fa-solid fa-check"></i>';
+      } else if (type === 'error') {
+        icon.className = 'w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-rose-100 text-rose-600 border-2 border-rose-300';
+        icon.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      } else {
+        icon.className = 'w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-sky-100 text-sky-700 border-2 border-sky-300';
+        icon.innerHTML = '<i class="fa-solid fa-info"></i>';
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('msgModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // Step 1 Lucky Draw Calculation
+    function calculateLuckyDraw() {
+      const spendInput = document.getElementById('spendInput').value;
+      if (spendInput === '' || spendInput < 0) {
+        showModal('輸入錯誤', '請輸入有效的消費金額！', 'error');
+        return;
+      }
+
+      const money = parseInt(spendInput, 10);
+      const receiptContent = document.getElementById('receiptContent');
+      document.getElementById('cardSpendAmount').innerText = money;
+
+      if (money < 50) {
+        receiptContent.innerHTML = `
+          <div class="text-center py-4 text-rose-600 font-bold">
+            <p class="text-sm">❌ 消費金額未滿 MOP 50 元</p>
+            <p class="text-xs text-slate-600 mt-1">無法參與本次社區消費大獎賞抽獎</p>
+          </div>
+        `;
+        document.getElementById('cardDrawResult').innerText = "未滿50元 (無法抽獎)";
+      } else {
+        const prizes = [10, 20, 50, 100, 200];
+        let total = 0;
+        let drawsHTML = '';
+
+        for (let i = 1; i <= 3; i++) {
+          const prize = prizes[Math.floor(Math.random() * prizes.length)];
+          total += prize;
+          drawsHTML += `
+            <div class="flex justify-between font-bold text-fuchsia-900">
+              <span>第 ${i} 次抽獎面額：</span>
+              <span class="text-teal-900 font-black">+ MOP ${prize} 元</span>
+            </div>
+          `;
+        }
+
+        receiptContent.innerHTML = `
+          <div class="border-b-2 border-fuchsia-300 pb-2 space-y-1.5 font-bold">
+            <div class="flex justify-between text-slate-700 mb-2">
+              <span>消費金額資格：</span>
+              <span class="text-teal-800 font-black">MOP ${money} (符合資格)</span>
+            </div>
+            ${drawsHTML}
+          </div>
+          <div class="pt-2 flex justify-between items-baseline">
+            <span class="text-sm font-black text-slate-800">共抽到優惠 Total:</span>
+            <span class="text-2xl font-black text-fuchsia-700">MOP ${total}</span>
+          </div>
+        `;
+        document.getElementById('cardDrawResult').innerText = `抽到 MOP ${total} 優惠`;
+      }
+
+      const d = new Date();
+      document.getElementById('receiptTime').innerText = d.toLocaleString();
+
+      const resultBox = document.getElementById('resultBox1');
+      resultBox.classList.remove('hidden');
+
+      const receiptCard = document.getElementById('receiptCard');
+      receiptCard.classList.remove('receipt-print-anim');
+      void receiptCard.offsetWidth;
+      receiptCard.classList.add('receipt-print-anim');
+    }
+
+    // Step 2: Test Student Python Code
+    async function testPythonCode() {
+      if (!pyodide) {
+        showModal('系統提示', 'Python 引擎尚未載入完成，請稍候...', 'info');
+        return;
+      }
+
+      const code = document.getElementById('pythonCode').value.trim();
+      if (!code) {
+        showModal('提示', '請先輸入你的 Python 程式碼！', 'error');
+        return;
+      }
+
+      const outputArea = document.getElementById('testOutputArea');
+      outputArea.innerHTML = '<span class="text-yellow-300 font-bold"><i class="fa-solid fa-spinner animate-spin"></i> 測試執行中，驗證 if/else 與 while 迴圈抽獎邏輯...</span>';
+
+      let logs = [];
+      let allPassed = true;
+
+      // Test Case 1: money = 30 (< 50)
+      try {
+        pyodide.runPython(`
+import sys
+import io
+
+sys.stdin = io.StringIO("30\\n")
+sys.stdout = io.StringIO()
+        `);
+
+        await pyodide.runPythonAsync(code);
+        const out1 = pyodide.runPython("sys.stdout.getvalue()").trim();
+
+        if (out1.includes("未滿") || out1.includes("不能抽獎") || out1.includes("不足")) {
+          logs.push(`<div class="text-yellow-300 font-mono">✓ 測試項 1 (金額 30元): 正確輸出不滿 50 元的提示。</div>`);
+        } else {
+          allPassed = false;
+          logs.push(`<div class="text-rose-400 font-mono">✗ 測試項 1 (金額 30元): 應該提示不能抽獎，但輸出為：「${out1}」</div>`);
+        }
+      } catch (err) {
+        allPassed = false;
+        logs.push(`<div class="text-rose-400 font-mono">✗ 測試項 1 執行錯誤: ${err.message.split('\n').pop()}</div>`);
+      }
+
+      // Test Case 2: money = 100 (>= 50)
+      try {
+        pyodide.runPython(`
+import sys
+import io
+
+sys.stdin = io.StringIO("100\\n")
+sys.stdout = io.StringIO()
+        `);
+
+        await pyodide.runPythonAsync(code);
+        const out2 = pyodide.runPython("sys.stdout.getvalue()").trim();
+
+        const lines = out2.split('\n').filter(l => l.trim() !== '');
+        const has3Draws = (out2.match(/第.*次/g) || []).length >= 3 || lines.length >= 4;
+        const hasTotal = out2.includes("共") || out2.includes("總金額") || out2.includes("抽到");
+
+        if (has3Draws && hasTotal) {
+          logs.push(`<div class="text-yellow-300 font-mono">✓ 測試項 2 (金額 100元): 成功執行 3 次抽獎並印出總金額！</div>`);
+          logs.push(`<div class="text-slate-400 font-mono text-xs pl-4 border-l-2 border-yellow-400 mt-1 mb-1">輸出範例：\n${out2}</div>`);
+        } else {
+          allPassed = false;
+          logs.push(`<div class="text-rose-400 font-mono">✗ 測試項 2 (金額 100元): 輸出未包含 3 次抽獎或總額，輸出為：「${out2}」</div>`);
+        }
+      } catch (err) {
+        allPassed = false;
+        logs.push(`<div class="text-rose-400 font-mono">✗ 測試項 2 執行錯誤: ${err.message.split('\n').pop()}</div>`);
+      }
+
+      outputArea.innerHTML = logs.join('');
+
+      const statusText = document.getElementById('test2StatusText');
+      const cardStatus = document.getElementById('cardStatus');
+      const cardCodeDisplay = document.getElementById('cardCodeDisplay');
+      const exportBtn = document.getElementById('exportBtn');
+
+      cardCodeDisplay.innerText = code;
+
+      if (allPassed) {
+        isTest2Passed = true;
+        statusText.className = "text-xs font-bold text-yellow-300 flex items-center gap-1";
+        statusText.innerHTML = '<i class="fa-solid fa-circle-check"></i> 測試 2 成功通過！';
+        
+        cardStatus.className = "text-yellow-300 font-bold";
+        cardStatus.innerText = "驗證成功 (PASSED)";
+
+        exportBtn.disabled = false;
+        showModal('🎉 太棒了！', '你的 Python 抽獎模擬器程式完全正確！現在可以點擊下方的「輸出圖檔」按鈕囉。', 'success');
+      } else {
+        isTest2Passed = false;
+        statusText.className = "text-xs font-bold text-rose-400 flex items-center gap-1";
+        statusText.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> 測試失敗，請修正程式碼';
+
+        cardStatus.className = "text-rose-400 font-bold";
+        cardStatus.innerText = "未通過 (FAILED)";
+
+        exportBtn.disabled = true;
+      }
+    }
+
+    // Step 3: Export HTML Card as PNG Image
+    function exportCardImage() {
+      if (!isTest2Passed) {
+        showModal('無法輸出', '請先成功通過「測試 2」後再匯出圖檔！', 'error');
+        return;
+      }
+
+      const card = document.getElementById('captureCard');
+      const fileName = `${getStudentId()}.png`;
+
+      const exportBtn = document.getElementById('exportBtn');
+      const originalText = exportBtn.innerHTML;
+      exportBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> 圖片產生中...';
+      exportBtn.disabled = true;
+
+      html2canvas(card, {
+        scale: 2,
+        backgroundColor: '#0f172a',
+        useCORS: true
+      }).then(async canvas => {
+        const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+
+        if ('showSaveFilePicker' in window) {
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: fileName,
+              types: [{
+                description: 'PNG Image',
+                accept: { 'image/png': ['.png'] },
+              }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(imageBlob);
+            await writable.close();
+
+            exportBtn.innerHTML = originalText;
+            exportBtn.disabled = false;
+            showModal('儲存成功', `學習成果圖檔 (${fileName}) 已成功儲存！`, 'success');
+            return;
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              exportBtn.innerHTML = originalText;
+              exportBtn.disabled = false;
+              return;
+            }
+            console.warn("SaveFilePicker 失敗或取消，改用傳統下載方式", err);
+          }
+        }
+
+        const image = canvas.toDataURL("image/png");
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = image;
+        link.click();
+
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+
+        showModal('下載成功', `學習成果圖檔 (${fileName}) 已開始下載！`, 'success');
+      }).catch(err => {
+        console.error(err);
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+        showModal('匯出失敗', '產生圖檔時發生錯誤，請重試。', 'error');
+      });
+    }
+  </script>
+</body>
+</html>
