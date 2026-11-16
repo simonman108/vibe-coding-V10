@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Python 單人拔河挑戰賽 (師生共學版)</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts: Noto Sans TC 與 Fira Code (程式碼字體) -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;700&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- 引入 Tone.js 產生遊戲音效 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            background: linear-gradient(180deg, #bae6fd 0%, #e0f2fe 100%);
+        }
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+        /* 拔河隊伍移動過渡效果 */
+        #tug-group {
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        /* 拔河用力搖晃動畫 */
+        @keyframes pull-shake {
+            0%, 100% { transform: rotate(0deg) translateY(0); }
+            25% { transform: rotate(-3deg) translateY(-2px); }
+            75% { transform: rotate(3deg) translateY(1px); }
+        }
+        .pulling-anim {
+            animation: pull-shake 0.8s infinite ease-in-out;
+        }
+        /* 答對/答錯閃爍回饋 */
+        @keyframes flash-green {
+            0% { background-color: rgba(34, 197, 94, 0.35); }
+            100% { background-color: transparent; }
+        }
+        @keyframes flash-red {
+            0% { background-color: rgba(239, 68, 68, 0.35); }
+            100% { background-color: transparent; }
+        }
+        .correct-flash {
+            animation: flash-green 0.5s ease-out;
+        }
+        .wrong-flash {
+            animation: flash-red 0.5s ease-out;
+        }
+        /* 觸控按鈕立體感 */
+        .option-btn {
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
+        }
+        .option-btn:active:not(:disabled) {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between p-2 md:p-4">
+
+    <!-- 頂部狀態列：分數與計時器 -->
+    <header class="flex items-center justify-between bg-white/90 backdrop-blur-md rounded-2xl px-4 py-2 md:px-8 md:py-3 shadow-md z-10">
+        <!-- 學生/老師藍隊狀態 -->
+        <div class="flex items-center space-x-3 md:space-x-6">
+            <div class="bg-blue-600 text-white font-black px-3 py-1 md:px-4 md:py-1.5 rounded-xl text-base md:text-xl shadow-sm flex items-center space-x-1.5">
+                <span>🧑‍🎓</span>
+                <span>挑戰者 (我方)</span>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-xs text-slate-500 font-bold">目前得分</span>
+                <span id="p1-score" class="text-2xl md:text-4xl font-black text-blue-600 leading-none">0</span>
+            </div>
+            <div class="hidden sm:flex flex-col border-l pl-4 border-slate-200">
+                <span class="text-xs text-slate-500 font-bold">進度 / 用時</span>
+                <span id="p1-progress" class="text-sm md:text-base font-bold text-slate-700">0/10 題 (0.0s)</span>
+            </div>
+        </div>
+
+        <!-- 中央總計時器與標題 -->
+        <div class="flex flex-col items-center">
+            <div class="flex items-center space-x-2">
+                <span class="text-xs md:text-sm font-black tracking-wider text-slate-500 uppercase">Python 師生共學練習賽</span>
+                <button id="sound-toggle-btn" onclick="toggleSound()" class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-black px-2.5 py-0.5 rounded-full border border-amber-300 transition cursor-pointer flex items-center space-x-1" title="切換音樂與音效">
+                    <span id="sound-icon">🔊</span>
+                    <span id="sound-text">音效開</span>
+                </button>
+            </div>
+            <div class="bg-slate-800 text-amber-400 code-font font-bold text-xl md:text-3xl px-4 py-1 rounded-xl shadow-inner mt-0.5 flex items-center space-x-2">
+                <span>⏱</span>
+                <span id="global-timer">00:00.0</span>
+            </div>
+        </div>
+
+        <!-- AI 電腦對手狀態 -->
+        <div class="flex items-center space-x-3 md:space-x-6">
+            <div class="hidden sm:flex flex-col border-r pr-4 border-slate-200 text-right">
+                <span class="text-xs text-slate-500 font-bold">AI 進度</span>
+                <span id="ai-progress" class="text-sm md:text-base font-bold text-slate-700">0/10 題</span>
+            </div>
+            <div class="flex flex-col text-right">
+                <span class="text-xs text-slate-500 font-bold">AI 得分</span>
+                <span id="ai-score" class="text-2xl md:text-4xl font-black text-rose-600 leading-none">0</span>
+            </div>
+            <div class="bg-rose-600 text-white font-black px-3 py-1 md:px-4 md:py-1.5 rounded-xl text-base md:text-xl shadow-sm flex items-center space-x-1.5">
+                <span>🤖</span>
+                <span id="ai-badge-name">AI 機器人</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主遊戲區：左側作答與教學區 (7欄) | 右側拔河與 AI 戰況區 (5欄) -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 my-2 md:my-3 min-h-0">
+        
+        <!-- 挑戰者作答與師生講解區 (佔 7 欄，更寬敞適合教學投影) -->
+        <section id="p1-panel" class="lg:col-span-7 bg-white/95 rounded-3xl p-4 md:p-6 shadow-xl border-4 border-blue-400 flex flex-col justify-between relative overflow-hidden">
+            <!-- 題號與主題標籤 -->
+            <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center space-x-2">
+                    <span id="p1-q-num" class="bg-blue-600 text-white font-black px-3.5 py-1 rounded-xl text-sm md:text-base shadow-sm">第 1 / 10 題</span>
+                    <span id="p1-topic" class="text-xs md:text-sm font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-lg">運算子</span>
+                </div>
+                <span class="text-xs font-bold text-slate-400">💡 點擊選項作答，答完可看解析</span>
+            </div>
+
+            <!-- 程式碼題目顯示框 -->
+            <div class="bg-slate-900 text-slate-100 rounded-2xl p-4 md:p-6 my-1 flex-1 flex flex-col justify-center shadow-inner overflow-y-auto relative">
+                <pre id="p1-code" class="code-font text-xl md:text-3xl font-bold leading-relaxed whitespace-pre-wrap text-center"></pre>
+            </div>
+
+            <!-- 選項按鈕區 (2x2 網格) -->
+            <div id="p1-options" class="grid grid-cols-2 gap-3 md:gap-4 mt-3">
+                <!-- 動態生成 4 個選項 -->
+            </div>
+
+            <!-- 師生共學解析回饋列 (作答後顯示，方便老師帶學生討論) -->
+            <div id="explanation-bar" class="hidden mt-3 p-3 md:p-4 rounded-2xl border-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all">
+                <div class="flex items-start space-x-2.5">
+                    <span id="exp-icon" class="text-2xl leading-none mt-0.5">💡</span>
+                    <div>
+                        <div id="exp-title" class="font-black text-base md:text-lg">答對了！</div>
+                        <p id="exp-text" class="text-xs md:text-sm font-bold opacity-90 mt-0.5">這裡會顯示觀念解析...</p>
+                    </div>
+                </div>
+                <button id="next-q-btn" onclick="goToNextQuestion()" class="w-full sm:w-auto shrink-0 bg-slate-800 hover:bg-slate-900 text-white font-black px-5 py-2.5 rounded-xl text-sm md:text-base shadow cursor-pointer transition active:scale-95">
+                    下一題 ➔
+                </button>
+            </div>
+
+            <!-- 完成遮罩 -->
+            <div id="p1-finished-overlay" class="hidden absolute inset-0 bg-blue-900/95 backdrop-blur-sm text-white flex flex-col items-center justify-center p-6 text-center z-20">
+                <div class="text-6xl mb-3">🏁</div>
+                <h3 class="text-2xl md:text-3xl font-black mb-2">已完成所有題目！</h3>
+                <p id="p1-finish-stats" class="text-lg md:text-xl font-bold text-blue-200 mb-4"></p>
+                <div class="animate-pulse text-sm bg-blue-800 px-5 py-2.5 rounded-full font-bold">正在等待 AI 對手完成最後幾題...</div>
+            </div>
+        </section>
+
+        <!-- 右側拔河舞台與 AI 狀態區 (佔 5 欄) -->
+        <section class="lg:col-span-5 bg-sky-200/80 rounded-3xl border-4 border-white shadow-inner relative flex flex-col justify-between p-4 overflow-hidden min-h-[240px]">
+            <!-- 勝利線與標示 -->
+            <div class="w-full flex justify-between text-xs font-black px-1 z-10">
+                <span class="text-blue-700 bg-blue-100/90 px-2.5 py-1 rounded-lg shadow-sm">◀ 我方勝利區</span>
+                <span class="text-slate-600 bg-white/90 px-2.5 py-1 rounded-lg shadow-sm">中線</span>
+                <span class="text-rose-700 bg-rose-100/90 px-2.5 py-1 rounded-lg shadow-sm">AI 勝利區 ▶</span>
+            </div>
+
+            <!-- AI 即時動態提示氣泡 -->
+            <div class="z-10 flex justify-center mt-2">
+                <div id="ai-thought-bubble" class="bg-white/95 border-2 border-rose-300 text-rose-800 text-xs md:text-sm font-bold px-4 py-1.5 rounded-full shadow-sm flex items-center space-x-2">
+                    <span class="animate-bounce">🤖</span>
+                    <span id="ai-status-text">AI 正在分析題目中...</span>
+                </div>
+            </div>
+
+            <!-- 中央垂直虛線 -->
+            <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 border-l-4 border-dashed border-slate-500/40 z-0"></div>
+            <!-- 左右警戒線 -->
+            <div class="absolute inset-y-0 left-[15%] border-l-2 border-dotted border-blue-500/40 z-0"></div>
+            <div class="absolute inset-y-0 right-[15%] border-l-2 border-dotted border-rose-500/40 z-0"></div>
+
+            <!-- 拔河 SVG 動態場景 -->
+            <div class="relative w-full flex-1 flex items-center justify-center z-10 overflow-hidden my-2">
+                <div id="tug-group" class="w-full flex items-center justify-center" style="transform: translateX(0px);">
+                    <svg viewBox="0 0 600 180" class="w-full max-w-[540px] h-auto drop-shadow-md">
+                        <!-- 拔河長繩 -->
+                        <line x1="40" y1="115" x2="560" y2="115" stroke="#92400e" stroke-width="8" stroke-linecap="round" />
+                        <line x1="40" y1="115" x2="560" y2="115" stroke="#d97706" stroke-width="3" stroke-dasharray="10 6" />
+                        
+                        <!-- 繩子中央紅絲帶標記 -->
+                        <polygon points="300,115 292,145 300,138 308,145" fill="#ef4444" />
+                        <circle cx="300" cy="115" r="7" fill="#dc2626" />
+
+                        <!-- 藍隊隊員 1 (學生) -->
+                        <g class="pulling-anim" style="transform-origin: 210px 150px;">
+                            <line x1="210" y1="125" x2="195" y2="85" stroke="#2563eb" stroke-width="16" stroke-linecap="round"/>
+                            <circle cx="190" cy="65" r="14" fill="#fde047" stroke="#1e3a8a" stroke-width="3"/>
+                            <path d="M177 60 Q190 55 203 60" stroke="#2563eb" stroke-width="5" fill="none"/>
+                            <polyline points="210,125 225,145 235,165" stroke="#1e3a8a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="210,125 190,145 180,165" stroke="#1d4ed8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="198,92 220,115 235,115" stroke="#fde047" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </g>
+
+                        <!-- 藍隊隊員 2 (老師助陣) -->
+                        <g class="pulling-anim" style="transform-origin: 130px 150px; animation-delay: 0.2s;">
+                            <line x1="130" y1="125" x2="112" y2="85" stroke="#3b82f6" stroke-width="16" stroke-linecap="round"/>
+                            <circle cx="107" cy="65" r="14" fill="#fde047" stroke="#1e3a8a" stroke-width="3"/>
+                            <path d="M94 60 Q107 55 120 60" stroke="#2563eb" stroke-width="5" fill="none"/>
+                            <polyline points="130,125 145,145 155,165" stroke="#1e3a8a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="130,125 110,145 100,165" stroke="#1d4ed8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="115,92 140,115 155,115" stroke="#fde047" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </g>
+
+                        <!-- 紅隊機器人 1 -->
+                        <g class="pulling-anim" style="transform-origin: 390px 150px; animation-delay: 0.1s;">
+                            <line x1="390" y1="125" x2="405" y2="85" stroke="#e11d48" stroke-width="16" stroke-linecap="round"/>
+                            <!-- 機器人方頭 -->
+                            <rect x="396" y="51" width="28" height="26" rx="5" fill="#cbd5e1" stroke="#881337" stroke-width="3"/>
+                            <line x1="410" y1="51" x2="410" y2="42" stroke="#881337" stroke-width="3"/>
+                            <circle cx="410" cy="40" r="3" fill="#ef4444"/>
+                            <circle cx="404" cy="63" r="3" fill="#e11d48"/>
+                            <polyline points="390,125 375,145 365,165" stroke="#881337" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="390,125 410,145 420,165" stroke="#be123c" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="402,92 380,115 365,115" stroke="#94a3b8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </g>
+
+                        <!-- 紅隊機器人 2 -->
+                        <g class="pulling-anim" style="transform-origin: 470px 150px; animation-delay: 0.3s;">
+                            <line x1="470" y1="125" x2="488" y2="85" stroke="#f43f5e" stroke-width="16" stroke-linecap="round"/>
+                            <rect x="479" y="51" width="28" height="26" rx="5" fill="#cbd5e1" stroke="#881337" stroke-width="3"/>
+                            <line x1="493" y1="51" x2="493" y2="42" stroke="#881337" stroke-width="3"/>
+                            <circle cx="493" cy="40" r="3" fill="#ef4444"/>
+                            <circle cx="487" cy="63" r="3" fill="#e11d48"/>
+                            <polyline points="470,125 455,145 445,165" stroke="#881337" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="470,125 490,145 500,165" stroke="#be123c" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <polyline points="485,92 460,115 445,115" stroke="#94a3b8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- 底部草地裝飾與戰況提示 -->
+            <div class="w-full bg-emerald-600/95 text-white text-center py-2 px-3 rounded-xl font-bold text-xs md:text-sm shadow-sm z-10">
+                <span id="battle-status">雙方勢均力敵！答對題目將繩子拉向我方！</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 底部控制列 -->
+    <footer class="flex justify-between items-center px-2 text-xs md:text-sm text-slate-600 font-bold">
+        <div class="flex items-center space-x-3">
+            <span>共 10 題（每題 10 分）</span>
+            <label class="inline-flex items-center space-x-1.5 cursor-pointer bg-white/80 px-2.5 py-1 rounded-lg border border-slate-300">
+                <input type="checkbox" id="auto-next-toggle" class="rounded text-blue-600 focus:ring-0">
+                <span class="text-slate-700">自動跳下一題（不暫停看解析）</span>
+            </label>
+        </div>
+        <button onclick="openStartModal()" class="bg-white hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl shadow-sm border border-slate-200 transition cursor-pointer">
+            ⚙️ 更改難度 / 重新開始
+        </button>
+    </footer>
+
+    <!-- 遊戲開始前說明與難度選擇視窗 -->
+    <div id="start-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-6 md:p-8 text-center shadow-2xl border-4 border-sky-400">
+            <div class="inline-block bg-sky-100 text-sky-700 font-black px-4 py-1 rounded-full text-sm mb-3">
+                PYTHON 師生共學互動模式
+            </div>
+            <h1 class="text-3xl md:text-4xl font-black text-slate-800 mb-3">Python 單人拔河挑戰賽</h1>
+            <p class="text-slate-600 font-bold text-sm md:text-base mb-5">
+                適合老師帶著學生一起討論解題！每題作答後會顯示<strong>觀念解析</strong>，可從容講解再進入下一題。
+            </p>
+
+            <!-- 選擇 AI 對手強度 -->
+            <div class="text-left mb-6">
+                <label class="block text-sm font-black text-slate-700 mb-2">請選擇 AI 對手等級（決定討論時間充裕度）：</label>
+                <div class="grid grid-cols-3 gap-2.5">
+                    <button type="button" onclick="selectDifficulty('easy')" id="diff-easy" class="diff-btn p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-black text-center cursor-pointer transition">
+                        <div class="text-xl mb-1">🐢</div>
+                        <div class="text-sm md:text-base">新手陪練</div>
+                        <div class="text-xs font-bold text-emerald-700 mt-0.5">約 12 秒/題</div>
+                    </button>
+                    <button type="button" onclick="selectDifficulty('normal')" id="diff-normal" class="diff-btn p-3 rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-black text-center cursor-pointer transition">
+                        <div class="text-xl mb-1">🤖</div>
+                        <div class="text-sm md:text-base">標準挑戰</div>
+                        <div class="text-xs font-bold text-slate-500 mt-0.5">約 7 秒/題</div>
+                    </button>
+                    <button type="button" onclick="selectDifficulty('hard')" id="diff-hard" class="diff-btn p-3 rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-black text-center cursor-pointer transition">
+                        <div class="text-xl mb-1">⚡</div>
+                        <div class="text-sm md:text-base">極速高手</div>
+                        <div class="text-xs font-bold text-slate-500 mt-0.5">約 4 秒/題</div>
+                    </button>
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xl md:text-2xl py-4 rounded-2xl shadow-lg transform transition active:scale-95 cursor-pointer">
+                🚀 開始練習挑戰！
+            </button>
+        </div>
+    </div>
+
+    <!-- 結算排行榜視窗 -->
+    <div id="result-modal" class="hidden fixed inset-0 bg-slate-900/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 md:p-8 text-center shadow-2xl border-4 border-amber-400">
+            <div id="result-emoji" class="text-6xl mb-2">🏆</div>
+            <h2 id="winner-banner" class="text-3xl md:text-4xl font-black text-slate-800 mb-2">挑戰成功！</h2>
+            <p id="tie-breaker-note" class="text-sm md:text-base font-bold text-amber-600 mb-6"></p>
+
+            <!-- 排名卡片 -->
+            <div class="space-y-3 mb-6 text-left">
+                <!-- 第 1 名 -->
+                <div class="flex items-center justify-between p-4 rounded-2xl border-2 border-amber-400 bg-amber-50/80 shadow-sm">
+                    <div class="flex items-center space-x-3 md:space-x-4">
+                        <span class="bg-amber-400 text-white font-black w-10 h-10 rounded-full flex items-center justify-center text-xl shadow">1</span>
+                        <div>
+                            <div id="rank-1-name" class="font-black text-lg md:text-xl text-slate-800">挑戰者 (我方)</div>
+                            <div id="rank-1-detail" class="text-xs md:text-sm text-slate-600 font-bold">答對 10 / 10 題</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div id="rank-1-score" class="text-2xl md:text-3xl font-black text-amber-600">100 分</div>
+                        <div id="rank-1-time" class="code-font text-sm font-bold text-slate-700">用時：25.40 秒</div>
+                    </div>
+                </div>
+
+                <!-- 第 2 名 -->
+                <div class="flex items-center justify-between p-4 rounded-2xl border-2 border-slate-200 bg-slate-50">
+                    <div class="flex items-center space-x-3 md:space-x-4">
+                        <span class="bg-slate-400 text-white font-black w-10 h-10 rounded-full flex items-center justify-center text-xl">2</span>
+                        <div>
+                            <div id="rank-2-name" class="font-black text-lg md:text-xl text-slate-700">AI 機器人</div>
+                            <div id="rank-2-detail" class="text-xs md:text-sm text-slate-500 font-bold">答對 8 / 10 題</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div id="rank-2-score" class="text-2xl md:text-3xl font-black text-slate-600">80 分</div>
+                        <div id="rank-2-time" class="code-font text-sm font-bold text-slate-500">用時：30.12 秒</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="openStartModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-black text-lg py-3.5 rounded-2xl transition cursor-pointer">
+                    ⚙️ 調整 AI 難度
+                </button>
+                <button onclick="startGame()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-lg py-3.5 rounded-2xl shadow-lg transition active:scale-95 cursor-pointer">
+                    🔄 再練習一局
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 題庫設計 (含師生共學觀念解析)
+        // ==========================================
+        const QUESTION_POOL = [
+            // --- 算術運算子 (//, **, /, %) ---
+            {
+                topic: "算術運算 (// 整數除法)",
+                code: "print(7 // 2)",
+                options: ["3", "3.5", "1", "4"],
+                answer: "3",
+                explanation: "// 是「整數除法（取商數）」，7 除以 2 等於 3.5，無條件捨去小數後得到 3。"
+            },
+            {
+                topic: "算術運算 (% 取餘數)",
+                code: "print(10 % 3)",
+                options: ["1", "3", "3.3", "0"],
+                answer: "1",
+                explanation: "% 是「取餘數」運算子，10 除以 3 商為 3，餘數為 1。"
+            },
+            {
+                topic: "算術運算 (** 次方)",
+                code: "print(2 ** 3)",
+                options: ["8", "6", "5", "9"],
+                answer: "8",
+                explanation: "** 代表「次方」，2 ** 3 就是 2 的 3 次方 (2 × 2 × 2 = 8)，不是 2 × 3 喔！"
+            },
+            {
+                topic: "算術運算 (/ 一般除法)",
+                code: "print(6 / 2)",
+                options: ["3.0", "3", "0", "12"],
+                answer: "3.0",
+                explanation: "在 Python 3 中，單斜線 / 的運算結果永遠是「浮點數 (float)」，所以會印出 3.0。"
+            },
+            {
+                topic: "算術運算 (// 整數除法)",
+                code: "print(9 // 4)",
+                options: ["2", "2.25", "1", "3"],
+                answer: "2",
+                explanation: "9 除以 4 等於 2 餘 1，使用 // 只取整數商數，結果為 2。"
+            },
+            {
+                topic: "算術運算 (% 取餘數)",
+                code: "print(15 % 5)",
+                options: ["0", "3", "5", "15"],
+                answer: "0",
+                explanation: "15 可以被 5 整除，沒有剩下餘數，因此 15 % 5 的結果是 0（常用來判斷倍數）。"
+            },
+            {
+                topic: "算術運算 (** 次方)",
+                code: "print(5 ** 2)",
+                options: ["25", "10", "7", "32"],
+                answer: "25",
+                explanation: "5 ** 2 代表 5 的 2 次方（5 的平方），5 × 5 = 25。"
+            },
+
+            // --- 邏輯運算 (and, or, not, True, False) ---
+            {
+                topic: "邏輯運算 (and)",
+                code: "print(True and False)",
+                options: ["False", "True", "None", "Error"],
+                answer: "False",
+                explanation: "and（且）必須「兩邊都是 True」結果才會是 True，只要有一邊是 False 結果就是 False。"
+            },
+            {
+                topic: "邏輯運算 (or)",
+                code: "print(True or False)",
+                options: ["True", "False", "None", "Error"],
+                answer: "True",
+                explanation: "or（或）只要「其中一邊是 True」，整個條件就會成立，結果為 True。"
+            },
+            {
+                topic: "邏輯運算 (not)",
+                code: "print(not False)",
+                options: ["True", "False", "0", "None"],
+                answer: "True",
+                explanation: "not 代表「相反（反轉布林值）」，not False 就會變成 True。"
+            },
+            {
+                topic: "邏輯運算 (not)",
+                code: "print(not True)",
+                options: ["False", "True", "1", "None"],
+                answer: "False",
+                explanation: "not 會將布林值反轉，not True 的結果是 False。"
+            },
+            {
+                topic: "邏輯運算 (and 綜合)",
+                code: "print(5 > 3 and 2 > 4)",
+                options: ["False", "True", "5", "2"],
+                answer: "False",
+                explanation: "5 > 3 是 True，但 2 > 4 是 False；True and False 的結果為 False。"
+            },
+            {
+                topic: "邏輯運算 (or 綜合)",
+                code: "print(1 == 2 or 3 == 3)",
+                options: ["True", "False", "3", "Error"],
+                answer: "True",
+                explanation: "雖然 1 == 2 是 False，但右邊的 3 == 3 是 True，使用 or 連接時結果為 True。"
+            },
+
+            // --- 迴圈控制 (while, break, continue) ---
+            {
+                topic: "迴圈 (break)",
+                code: "# 哪個關鍵字可以\n#「立刻跳出」整個迴圈？",
+                options: ["break", "continue", "while", "pass"],
+                answer: "break",
+                explanation: "break 的意思是「中斷」，執行到 break 會直接結束整個迴圈。"
+            },
+            {
+                topic: "迴圈 (continue)",
+                code: "# 哪個關鍵字可以\n#「跳過本次」直接進入下一輪？",
+                options: ["continue", "break", "stop", "exit"],
+                answer: "continue",
+                explanation: "continue 會略過迴圈內剩下的程式碼，直接回到迴圈開頭進行下一次判斷。"
+            },
+            {
+                topic: "迴圈 (while)",
+                code: "# while 迴圈在條件為\n# 什麼值時會繼續執行？",
+                options: ["True", "False", "0", "None"],
+                answer: "True",
+                explanation: "while 迴圈只要後方條件判斷為 True，就會不斷重複執行區塊內的程式。"
+            },
+            {
+                topic: "迴圈追蹤 (break)",
+                code: "x = 1\nwhile x < 5:\n    if x == 3: break\n    x += 1\nprint(x)",
+                options: ["3", "5", "4", "1"],
+                answer: "3",
+                explanation: "x 從 1 遞增到 3 時，觸發 if x == 3: break 立刻跳出迴圈，此時 x 的值停留在 3。"
+            },
+            {
+                topic: "迴圈追蹤 (while)",
+                code: "n = 0\nwhile n < 3:\n    n += 1\nprint(n)",
+                options: ["3", "2", "0", "4"],
+                answer: "3",
+                explanation: "n=0, 1, 2 時都小於 3 會執行 n += 1；當 n 變成 3 時，3 < 3 為 False 結束迴圈，印出 3。"
+            }
+        ];
+
+        // ==========================================
+        // 2. 遊戲狀態與 AI 設定
+        // ==========================================
+        const TOTAL_QUESTIONS = 10;
+        const POINTS_PER_QUESTION = 10;
+
+        // AI 難度參數設定
+        const AI_CONFIGS = {
+            easy: { label: "新手 AI", minMs: 9000, maxMs: 14000, accuracy: 0.7 },
+            normal: { label: "標準 AI", minMs: 5500, maxMs: 8500, accuracy: 0.85 },
+            hard: { label: "極速 AI", minMs: 3000, maxMs: 5000, accuracy: 0.95 }
+        };
+
+        let currentDifficulty = 'easy';
+        let gameQuestions = [];
+        let isGameRunning = false;
+        let startTime = 0;
+        let timerInterval = null;
+        let aiTimeout = null;
+
+        // 玩家與 AI 狀態
+        const player = {
+            name: '挑戰者 (我方)',
+            currentIndex: 0,
+            score: 0,
+            correctCount: 0,
+            finished: false,
+            finishTime: 0,
+            answeredCurrent: false
+        };
+
+        const ai = {
+            name: 'AI 機器人',
+            currentIndex: 0,
+            score: 0,
+            correctCount: 0,
+            finished: false,
+            finishTime: 0
+        };
+
+        // ==========================================
+        // 3. 歡樂遊戲音效系統 (Tone.js)
+        // ==========================================
+        let isSoundEnabled = true;
+        let audioInitialized = false;
+        let sfxSynth = null;
+        let bassSynth = null;
+        let melodySynth = null;
+        let bgmLoop = null;
+        let bgmStep = 0;
+
+        const BGM_MELODY = [
+            "C5", null, "E5", "G5", "A5", null, "G5", null,
+            "F5", null, "D5", "F5", "E5", null, "C5", null,
+            "D5", null, "G4", "B4", "C5", null, "E5", null,
+            "G5", "A5", "G5", "E5", "D5", null, null, null
+        ];
+        const BGM_BASS = [
+            "C3", null, "G2", null, "C3", null, "G2", null,
+            "F2", null, "C3", null, "C3", null, "G2", null,
+            "G2", null, "D3", null, "C3", null, "G2", null,
+            "G2", null, "B2", null, "C3", "G2", "C3", null
+        ];
+
+        async function initAudio() {
+            if (typeof Tone === 'undefined') return;
+            await Tone.start();
+            
+            if (!audioInitialized) {
+                sfxSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.01, decay: 0.15, sustain: 0.1, release: 0.3 }
+                }).toDestination();
+                sfxSynth.volume.value = -4;
+
+                melodySynth = new Tone.Synth({
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.15 }
+                }).toDestination();
+                melodySynth.volume.value = -22; // 單人教學時背景音樂稍微柔和一點
+
+                bassSynth = new Tone.Synth({
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.01, decay: 0.12, sustain: 0.1, release: 0.15 }
+                }).toDestination();
+                bassSynth.volume.value = -16;
+
+                Tone.Transport.bpm.value = 132;
+                bgmLoop = new Tone.Loop((time) => {
+                    if (!isSoundEnabled || !isGameRunning) return;
+                    const noteM = BGM_MELODY[bgmStep % BGM_MELODY.length];
+                    const noteB = BGM_BASS[bgmStep % BGM_BASS.length];
+                    if (noteM) melodySynth.triggerAttackRelease(noteM, "16n", time);
+                    if (noteB) bassSynth.triggerAttackRelease(noteB, "16n", time);
+                    bgmStep++;
+                }, "8n");
+
+                audioInitialized = true;
+            }
+        }
+
+        function startBGM() {
+            if (!audioInitialized || !isSoundEnabled) return;
+            bgmStep = 0;
+            Tone.Transport.bpm.value = 132;
+            if (bgmLoop && bgmLoop.state !== "started") bgmLoop.start(0);
+            if (Tone.Transport.state !== "started") Tone.Transport.start();
+        }
+
+        function stopBGM() {
+            if (!audioInitialized) return;
+            if (bgmLoop && bgmLoop.state === "started") bgmLoop.stop();
+            Tone.Transport.stop();
+        }
+
+        function toggleSound() {
+            isSoundEnabled = !isSoundEnabled;
+            const icon = document.getElementById('sound-icon');
+            const text = document.getElementById('sound-text');
+            if (isSoundEnabled) {
+                icon.textContent = "🔊";
+                text.textContent = "音效開";
+                if (isGameRunning) startBGM();
+            } else {
+                icon.textContent = "🔇";
+                text.textContent = "靜音";
+                stopBGM();
+            }
+        }
+
+        function playSound(type) {
+            if (!isSoundEnabled || !audioInitialized || !sfxSynth) return;
+            try {
+                const now = Tone.now();
+                if (type === 'start') {
+                    sfxSynth.triggerAttackRelease("C5", "16n", now);
+                    sfxSynth.triggerAttackRelease("E5", "16n", now + 0.08);
+                    sfxSynth.triggerAttackRelease("G5", "16n", now + 0.16);
+                    sfxSynth.triggerAttackRelease("C6", "8n", now + 0.24);
+                } else if (type === 'correct') {
+                    sfxSynth.triggerAttackRelease("B5", "32n", now);
+                    sfxSynth.triggerAttackRelease("E6", "16n", now + 0.06);
+                } else if (type === 'wrong') {
+                    sfxSynth.triggerAttackRelease(["E3", "Bb2"], "16n", now);
+                    sfxSynth.triggerAttackRelease(["Eb3", "A2"], "8n", now + 0.1);
+                } else if (type === 'ai_score') {
+                    sfxSynth.triggerAttackRelease("G4", "32n", now);
+                } else if (type === 'win') {
+                    sfxSynth.triggerAttackRelease(["C5", "E5", "G5"], "16n", now);
+                    sfxSynth.triggerAttackRelease(["C5", "E5", "G5"], "16n", now + 0.12);
+                    sfxSynth.triggerAttackRelease(["D5", "F#5", "A5", "D6"], "4n", now + 0.24);
+                    sfxSynth.triggerAttackRelease(["E5", "G#5", "B5", "E6"], "2n", now + 0.48);
+                }
+            } catch (e) {}
+        }
+
+        // ==========================================
+        // 4. 難度選擇與流程控制
+        // ==========================================
+        function selectDifficulty(level) {
+            currentDifficulty = level;
+            ['easy', 'normal', 'hard'].forEach(lvl => {
+                const btn = document.getElementById(`diff-${lvl}`);
+                if (lvl === level) {
+                    btn.className = "diff-btn p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-black text-center cursor-pointer transition shadow-sm";
+                } else {
+                    btn.className = "diff-btn p-3 rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-black text-center cursor-pointer transition hover:border-slate-300";
+                }
+            });
+        }
+
+        function openStartModal() {
+            isGameRunning = false;
+            if (timerInterval) clearInterval(timerInterval);
+            if (aiTimeout) clearTimeout(aiTimeout);
+            stopBGM();
+            document.getElementById('result-modal').classList.add('hidden');
+            document.getElementById('start-modal').classList.remove('hidden');
+        }
+
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        async function startGame() {
+            await initAudio();
+            document.getElementById('start-modal').classList.add('hidden');
+            document.getElementById('result-modal').classList.add('hidden');
+            document.getElementById('p1-finished-overlay').classList.add('hidden');
+            document.getElementById('explanation-bar').classList.add('hidden');
+
+            // 隨機抽出 10 題
+            gameQuestions = shuffleArray(QUESTION_POOL).slice(0, TOTAL_QUESTIONS);
+
+            // 重置玩家數據
+            player.currentIndex = 0;
+            player.score = 0;
+            player.correctCount = 0;
+            player.finished = false;
+            player.finishTime = 0;
+            player.answeredCurrent = false;
+
+            // 重置 AI 數據
+            const aiCfg = AI_CONFIGS[currentDifficulty];
+            ai.name = aiCfg.label;
+            ai.currentIndex = 0;
+            ai.score = 0;
+            ai.correctCount = 0;
+            ai.finished = false;
+            ai.finishTime = 0;
+            document.getElementById('ai-badge-name').textContent = ai.name;
+            document.getElementById('ai-status-text').textContent = `${ai.name} 準備就緒，正在思考第 1 題...`;
+
+            isGameRunning = true;
+            startTime = performance.now();
+
+            playSound('start');
+            startBGM();
+
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 50);
+
+            updateUI();
+            renderQuestion();
+            scheduleNextAITurn();
+        }
+
+        // 排程 AI 機器人的下一次作答
+        function scheduleNextAITurn() {
+            if (!isGameRunning || ai.finished) return;
+
+            const aiCfg = AI_CONFIGS[currentDifficulty];
+            const delay = Math.floor(Math.random() * (aiCfg.maxMs - aiCfg.minMs + 1)) + aiCfg.minMs;
+
+            if (aiTimeout) clearTimeout(aiTimeout);
+            aiTimeout = setTimeout(() => {
+                if (!isGameRunning || ai.finished) return;
+
+                const isAICorrect = Math.random() < aiCfg.accuracy;
+                ai.currentIndex += 1;
+
+                if (isAICorrect) {
+                    ai.score += POINTS_PER_QUESTION;
+                    ai.correctCount += 1;
+                    playSound('ai_score');
+                    document.getElementById('ai-status-text').textContent = `⚡ ${ai.name} 答對了第 ${ai.currentIndex} 題！(+10分)`;
+                } else {
+                    document.getElementById('ai-status-text').textContent = `💦 ${ai.name} 第 ${ai.currentIndex} 題算錯了！好機會！`;
+                }
+
+                if (ai.currentIndex >= TOTAL_QUESTIONS) {
+                    ai.finished = true;
+                    ai.finishTime = performance.now() - startTime;
+                    document.getElementById('ai-status-text').textContent = `🏁 ${ai.name} 已完成全部 10 題！`;
+                    updateUI();
+                    checkGameOver();
+                } else {
+                    updateUI();
+                    scheduleNextAITurn();
+                }
+            }, delay);
+        }
+
+        // 更新計時器
+        function updateTimer() {
+            if (!isGameRunning) return;
+            const elapsedMs = performance.now() - startTime;
+            const totalSeconds = elapsedMs / 1000;
+            const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+            const secs = (totalSeconds % 60).toFixed(1).padStart(4, '0');
+            document.getElementById('global-timer').textContent = `${mins}:${secs}`;
+
+            const pTime = player.finished ? (player.finishTime / 1000).toFixed(2) : totalSeconds.toFixed(1);
+            document.getElementById('p1-progress').textContent = `${player.currentIndex}/${TOTAL_QUESTIONS} 題 (${pTime}s)`;
+            document.getElementById('ai-progress').textContent = `${ai.currentIndex}/${TOTAL_QUESTIONS} 題`;
+        }
+
+        // 渲染目前題目
+        function renderQuestion() {
+            if (player.currentIndex >= TOTAL_QUESTIONS) return;
+
+            player.answeredCurrent = false;
+            document.getElementById('explanation-bar').classList.add('hidden');
+
+            const q = gameQuestions[player.currentIndex];
+            document.getElementById('p1-q-num').textContent = `第 ${player.currentIndex + 1} / ${TOTAL_QUESTIONS} 題`;
+            document.getElementById('p1-topic').textContent = q.topic;
+            document.getElementById('p1-code').textContent = q.code;
+
+            const shuffledOptions = shuffleArray(q.options);
+            const optionsContainer = document.getElementById('p1-options');
+            optionsContainer.innerHTML = '';
+
+            shuffledOptions.forEach(optText => {
+                const btn = document.createElement('button');
+                btn.className = "option-btn code-font font-bold text-xl md:text-2xl py-3.5 md:py-4 px-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-900 border-2 border-blue-300 cursor-pointer flex items-center justify-center";
+                btn.textContent = optText;
+                btn.dataset.value = optText;
+                btn.onclick = () => handleAnswer(optText, btn);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        // 處理學生/老師作答
+        function handleAnswer(selectedOption, btnElement) {
+            if (!isGameRunning || player.finished || player.answeredCurrent) return;
+            player.answeredCurrent = true;
+
+            const currentQ = gameQuestions[player.currentIndex];
+            const isCorrect = (selectedOption === currentQ.answer);
+            const panel = document.getElementById('p1-panel');
+
+            // 鎖定所有按鈕並標示正確答案
+            const allBtns = document.querySelectorAll('#p1-options button');
+            allBtns.forEach(b => {
+                b.disabled = true;
+                b.classList.remove('hover:bg-blue-100', 'cursor-pointer');
+                if (b.dataset.value === currentQ.answer) {
+                    b.classList.remove('bg-blue-50', 'text-blue-900', 'border-blue-300');
+                    b.classList.add('bg-emerald-500', 'text-white', 'border-emerald-600');
+                }
+            });
+
+            // 顯示解析提示列
+            const expBar = document.getElementById('explanation-bar');
+            const expIcon = document.getElementById('exp-icon');
+            const expTitle = document.getElementById('exp-title');
+            const expText = document.getElementById('exp-text');
+
+            if (isCorrect) {
+                player.score += POINTS_PER_QUESTION;
+                player.correctCount += 1;
+                playSound('correct');
+                panel.classList.add('correct-flash');
+
+                expBar.className = "mt-3 p-3 md:p-4 rounded-2xl border-2 border-emerald-400 bg-emerald-50 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3";
+                expIcon.textContent = "✅";
+                expTitle.textContent = "答對了！我方用力拉回繩子！";
+            } else {
+                playSound('wrong');
+                btnElement.classList.remove('bg-blue-50', 'text-blue-900', 'border-blue-300');
+                btnElement.classList.add('bg-rose-500', 'text-white', 'border-rose-600');
+                panel.classList.add('wrong-flash');
+
+                expBar.className = "mt-3 p-3 md:p-4 rounded-2xl border-2 border-rose-400 bg-rose-50 text-rose-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3";
+                expIcon.textContent = "💡";
+                expTitle.textContent = `可惜答錯了！正確答案是「${currentQ.answer}」`;
+            }
+
+            expText.textContent = currentQ.explanation;
+            expBar.classList.remove('hidden');
+
+            // 最後一題按鈕文字改為「完成挑戰」
+            const nextBtn = document.getElementById('next-q-btn');
+            nextBtn.textContent = (player.currentIndex + 1 >= TOTAL_QUESTIONS) ? "完成作答 🏁" : "下一題 ➔";
+
+            setTimeout(() => {
+                panel.classList.remove('correct-flash', 'wrong-flash');
+            }, 500);
+
+            updateUI();
+
+            // 若勾選「自動跳下一題」，則在 1.2 秒後自動切換
+            const autoNext = document.getElementById('auto-next-toggle').checked;
+            if (autoNext) {
+                nextBtn.textContent = "即將切換...";
+                setTimeout(() => {
+                    if (player.answeredCurrent && isGameRunning) {
+                        goToNextQuestion();
+                    }
+                }, 1200);
+            }
+        }
+
+        // 切換到下一題
+        function goToNextQuestion() {
+            if (!isGameRunning || !player.answeredCurrent) return;
+
+            player.currentIndex += 1;
+
+            if (player.currentIndex >= TOTAL_QUESTIONS) {
+                player.finished = true;
+                player.finishTime = performance.now() - startTime;
+                const secStr = (player.finishTime / 1000).toFixed(2);
+                document.getElementById('p1-finish-stats').textContent = `我方得分：${player.score} 分 ｜ 總用時：${secStr} 秒`;
+                document.getElementById('p1-finished-overlay').classList.remove('hidden');
+                updateUI();
+                checkGameOver();
+            } else {
+                renderQuestion();
+                updateUI();
+            }
+        }
+
+        // 更新分數與拔河位置
+        function updateUI() {
+            document.getElementById('p1-score').textContent = player.score;
+            document.getElementById('ai-score').textContent = ai.score;
+
+            const scoreDiff = player.score - ai.score;
+            const maxShift = 115;
+            const shiftX = -(scoreDiff / 100) * maxShift;
+
+            const tugGroup = document.getElementById('tug-group');
+            tugGroup.style.transform = `translateX(${shiftX}px)`;
+
+            const statusEl = document.getElementById('battle-status');
+            if (scoreDiff > 0) {
+                statusEl.textContent = `🔥 我方領先 ${scoreDiff} 分！繼續保持將繩子拉過線！`;
+            } else if (scoreDiff < 0) {
+                statusEl.textContent = `⚠️ ${ai.name} 暫時領先 ${Math.abs(scoreDiff)} 分！加油追趕！`;
+            } else {
+                statusEl.textContent = `⚖️ 雙方目前平手！每題都至關重要！`;
+            }
+        }
+
+        // 檢查雙方是否皆已完成
+        function checkGameOver() {
+            if (player.finished && ai.finished) {
+                isGameRunning = false;
+                clearInterval(timerInterval);
+                if (aiTimeout) clearTimeout(aiTimeout);
+                stopBGM();
+                playSound('win');
+                setTimeout(showFinalResults, 500);
+            }
+        }
+
+        // 顯示結算結果
+        function showFinalResults() {
+            let first, second, bannerText, tieNote;
+            const emojiEl = document.getElementById('result-emoji');
+
+            if (player.score > ai.score) {
+                first = player;
+                second = ai;
+                emojiEl.textContent = "🏆";
+                bannerText = "🎉 太棒了！師生聯手戰勝 AI！";
+                tieNote = `我方以高出 ${player.score - ai.score} 分的優異表現贏得拔河勝利！`;
+            } else if (ai.score > player.score) {
+                first = ai;
+                second = player;
+                emojiEl.textContent = "💪";
+                bannerText = `差一點點！${ai.name} 險勝！`;
+                tieNote = `本次共答對 ${player.correctCount} 題，再練習一局一定能贏回來！`;
+            } else {
+                // 同分比較時間
+                if (player.finishTime <= ai.finishTime) {
+                    first = player;
+                    second = ai;
+                    emojiEl.textContent = "⚡";
+                    bannerText = "🎉 同分驚險奪冠！速度制勝！";
+                } else {
+                    first = ai;
+                    second = player;
+                    emojiEl.textContent = "⏱️";
+                    bannerText = "⚖️ 雙方同分！AI 速度略快一點點！";
+                }
+                const diffSec = (Math.abs(player.finishTime - ai.finishTime) / 1000).toFixed(2);
+                tieNote = `雙方同為 ${player.score} 分！${first.name} 用時短了 ${diffSec} 秒！`;
+            }
+
+            document.getElementById('winner-banner').textContent = bannerText;
+            document.getElementById('tie-breaker-note').textContent = tieNote;
+
+            document.getElementById('rank-1-name').textContent = first.name;
+            document.getElementById('rank-1-detail').textContent = `答對 ${first.correctCount} / ${TOTAL_QUESTIONS} 題`;
+            document.getElementById('rank-1-score').textContent = `${first.score} 分`;
+            document.getElementById('rank-1-time').textContent = `用時：${(first.finishTime / 1000).toFixed(2)} 秒`;
+
+            document.getElementById('rank-2-name').textContent = second.name;
+            document.getElementById('rank-2-detail').textContent = `答對 ${second.correctCount} / ${TOTAL_QUESTIONS} 題`;
+            document.getElementById('rank-2-score').textContent = `${second.score} 分`;
+            document.getElementById('rank-2-time').textContent = `用時：${(second.finishTime / 1000).toFixed(2)} 秒`;
+
+            document.getElementById('result-modal').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
