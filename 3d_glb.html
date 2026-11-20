@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D GLB 模型檢視器</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Inter 與繁體中文字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- 設定 Tailwind 字體 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* 自訂細緻捲軸 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.6);
+        }
+        /* 自訂 Range Slider */
+        input[type="range"] {
+            accent-color: #38bdf8;
+        }
+    </style>
+
+    <!-- Three.js ES Modules Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen relative overflow-hidden">
+
+    <!-- 3D 渲染畫布容器 -->
+    <div id="canvas-container" class="w-full h-full relative cursor-grab active:cursor-grabbing"></div>
+
+    <!-- 頂部浮動工具列 -->
+    <header class="fixed top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none gap-2">
+        <!-- 左側：品牌標題與檔案名稱 -->
+        <div class="pointer-events-auto flex items-center gap-3 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 px-4 py-2.5 rounded-2xl shadow-xl max-w-[60%] sm:max-w-md">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-600 flex items-center justify-center shrink-0 shadow-md">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                </svg>
+            </div>
+            <div class="truncate">
+                <h1 class="text-sm font-bold tracking-wide text-white leading-tight">GLB 3D 檢視器</h1>
+                <p id="current-filename" class="text-xs text-slate-400 truncate">內建展示模型（可拖曳 .glb 檔案）</p>
+            </div>
+        </div>
+
+        <!-- 右側：快速操作按鈕 -->
+        <div class="pointer-events-auto flex items-center gap-2">
+            <!-- 開啟單個檔案按鈕 -->
+            <label for="file-input-single" title="開啟單個 3D 模型檔案" class="cursor-pointer flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-semibold text-xs sm:text-sm px-3 py-2.5 rounded-xl shadow-lg shadow-sky-500/20 transition-all">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+                <span class="hidden sm:inline">開啟單檔</span>
+            </label>
+            <input type="file" id="file-input-single" accept=".glb,.gltf" class="hidden" />
+
+            <!-- 開啟多個檔案按鈕 -->
+            <label for="file-input-multi" title="一次開啟多個 3D 模型檔案並建立切換清單" class="cursor-pointer flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-400 active:scale-95 text-white font-semibold text-xs sm:text-sm px-3 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+                </svg>
+                <span class="hidden sm:inline">開啟多檔</span>
+            </label>
+            <input type="file" id="file-input-multi" accept=".glb,.gltf" multiple class="hidden" />
+
+            <!-- 截圖按鈕 -->
+            <button id="btn-screenshot" title="儲存截圖 (PNG)" class="p-2.5 bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-slate-200 rounded-xl shadow-lg transition-all active:scale-95">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                </svg>
+            </button>
+
+            <!-- 展開/收合控制面板按鈕 -->
+            <button id="btn-toggle-panel" title="控制面板" class="p-2.5 bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-slate-200 rounded-xl shadow-lg transition-all active:scale-95">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- 右側可收合控制面板 -->
+    <aside id="control-panel" class="fixed top-20 right-3 bottom-16 z-20 w-72 sm:w-80 bg-slate-900/85 backdrop-blur-xl border border-slate-700/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-out translate-x-[120%] md:translate-x-0">
+        <!-- 面板標頭 -->
+        <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">檢視設定與模型資訊</span>
+            <button id="btn-close-panel" class="md:hidden text-slate-400 hover:text-white p-1 rounded-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- 面板捲動內容區 -->
+        <div class="p-4 space-y-5 overflow-y-auto flex-1 text-sm">
+
+            <!-- 0. 多檔案模型清單（開啟多個檔案時顯示） -->
+            <section id="playlist-section" class="space-y-2.5 hidden">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>模型清單</span>
+                        <span id="playlist-count" class="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md text-[10px] font-mono">0 / 0</span>
+                    </h2>
+                    <button id="btn-clear-playlist" class="text-[11px] text-slate-400 hover:text-rose-400 transition">清空清單</button>
+                </div>
+                <div class="bg-slate-950/60 p-2 rounded-xl border border-slate-800/80 space-y-2">
+                    <div class="flex items-center gap-1.5">
+                        <button id="btn-prev-model" class="flex-1 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-xs font-medium transition">← 上一個</button>
+                        <button id="btn-next-model" class="flex-1 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-xs font-medium transition">下一個 →</button>
+                    </div>
+                    <ul id="playlist-items" class="max-h-36 overflow-y-auto space-y-1 pr-1"></ul>
+                </div>
+            </section>
+
+            <!-- 1. 模型統計資訊 -->
+            <section class="space-y-2">
+                <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider">模型資訊</h2>
+                <div class="grid grid-cols-2 gap-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-xs">
+                    <div>
+                        <span class="text-slate-400 block">網格 (Meshes)</span>
+                        <span id="stat-meshes" class="font-semibold text-white">0</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block">三角面 (Triangles)</span>
+                        <span id="stat-triangles" class="font-semibold text-white">0</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block">頂點 (Vertices)</span>
+                        <span id="stat-vertices" class="font-semibold text-white">0</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block">動畫軌道</span>
+                        <span id="stat-animations" class="font-semibold text-white">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 動畫控制（僅在模型包含動畫時顯示） -->
+            <section id="animation-section" class="space-y-2.5 hidden">
+                <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider">動畫播放</h2>
+                <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 space-y-3">
+                    <select id="animation-select" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:border-sky-500"></select>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-play-pause" class="flex-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded-lg py-1.5 text-xs font-medium transition">
+                            暫停
+                        </button>
+                        <div class="flex-1 flex flex-col">
+                            <div class="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                                <span>速度</span>
+                                <span id="anim-speed-val">1.0x</span>
+                            </div>
+                            <input id="anim-speed" type="range" min="0.1" max="2.5" step="0.1" value="1.0" class="w-full h-1.5 bg-slate-700 rounded-lg cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. 顯示選項 -->
+            <section class="space-y-2.5">
+                <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider">顯示模式</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="toggle-wireframe" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-medium transition">
+                        線框模式
+                    </button>
+                    <button id="toggle-autorotate" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/40 text-xs font-medium transition">
+                        自動旋轉
+                    </button>
+                    <button id="toggle-grid" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/40 text-xs font-medium transition">
+                        地面網格
+                    </button>
+                    <button id="toggle-bbox" class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-medium transition">
+                        邊界框
+                    </button>
+                </div>
+            </section>
+
+            <!-- 4. 光照與曝光 -->
+            <section class="space-y-3">
+                <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider">光照與渲染</h2>
+                <div class="space-y-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">曝光強度 (Exposure)</span>
+                            <span id="exposure-val" class="text-sky-400 font-mono">1.00</span>
+                        </div>
+                        <input id="slider-exposure" type="range" min="0.2" max="2.5" step="0.05" value="1.0" class="w-full h-1.5 bg-slate-700 rounded-lg cursor-pointer">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">主光源強度</span>
+                            <span id="light-val" class="text-sky-400 font-mono">1.5</span>
+                        </div>
+                        <input id="slider-light" type="range" min="0" max="4" step="0.1" value="1.5" class="w-full h-1.5 bg-slate-700 rounded-lg cursor-pointer">
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. 背景色彩 -->
+            <section class="space-y-2.5">
+                <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider">背景環境</h2>
+                <div class="flex items-center gap-2">
+                    <button data-bg="#0f172a" class="bg-preset w-7 h-7 rounded-full bg-slate-900 border-2 border-sky-400 shadow-sm transition hover:scale-110" title="深色工作室"></button>
+                    <button data-bg="#1e293b" class="bg-preset w-7 h-7 rounded-full bg-slate-800 border-2 border-slate-600 shadow-sm transition hover:scale-110" title="中性灰藍"></button>
+                    <button data-bg="#e2e8f0" class="bg-preset w-7 h-7 rounded-full bg-slate-200 border-2 border-slate-400 shadow-sm transition hover:scale-110" title="明亮攝影棚"></button>
+                    <button data-bg="#000000" class="bg-preset w-7 h-7 rounded-full bg-black border-2 border-slate-600 shadow-sm transition hover:scale-110" title="純黑"></button>
+                    <label class="ml-auto flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-700">
+                        <span>自訂</span>
+                        <input id="bg-color-picker" type="color" value="#0f172a" class="w-4 h-4 bg-transparent border-0 cursor-pointer rounded">
+                    </label>
+                </div>
+            </section>
+
+            <!-- 6. 視角快速切換 -->
+            <section class="space-y-2.5">
+                <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider">相機視角</h2>
+                <div class="grid grid-cols-3 gap-1.5 text-xs">
+                    <button data-view="front" class="cam-view-btn py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 transition">正面</button>
+                    <button data-view="back" class="cam-view-btn py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 transition">背面</button>
+                    <button data-view="top" class="cam-view-btn py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 transition">頂視</button>
+                    <button data-view="left" class="cam-view-btn py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 transition">左側</button>
+                    <button data-view="right" class="cam-view-btn py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 transition">右側</button>
+                    <button data-view="reset" class="cam-view-btn py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-medium transition">重置</button>
+                </div>
+            </section>
+
+            <!-- 恢復示範模型 -->
+            <div class="pt-2 border-t border-slate-800">
+                <button id="btn-load-demo" class="w-full py-2 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/60 text-xs text-slate-300 transition">
+                    重新載入內建展示模型
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 底部操作提示列 -->
+    <footer class="fixed bottom-3 left-3 z-10 pointer-events-none hidden sm:flex items-center gap-3 bg-slate-900/70 backdrop-blur-md border border-slate-800/80 px-3.5 py-2 rounded-xl text-[11px] text-slate-400">
+        <span><strong class="text-slate-200">左鍵拖曳</strong> 旋轉</span>
+        <span class="text-slate-600">•</span>
+        <span><strong class="text-slate-200">滾輪</strong> 縮放</span>
+        <span class="text-slate-600">•</span>
+        <span><strong class="text-slate-200">右鍵拖曳</strong> 平移</span>
+        <span class="text-slate-600">•</span>
+        <span>支援單檔或多檔拖曳 <strong class="text-sky-400">.glb / .gltf</strong></span>
+    </footer>
+
+    <!-- 底部浮動多檔快速切換列（開啟多個檔案時顯示） -->
+    <div id="multi-file-nav" class="fixed bottom-12 sm:bottom-3 left-1/2 -translate-x-1/2 z-20 hidden items-center gap-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/70 px-2.5 py-1.5 rounded-2xl shadow-2xl max-w-[90vw]">
+        <button id="float-prev-model" title="上一個模型 (←)" class="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+        </button>
+        <div class="px-2 text-center min-w-[110px] max-w-[180px] sm:max-w-[240px]">
+            <div id="float-model-counter" class="text-[10px] font-mono text-indigo-400 leading-none mb-0.5">1 / 1</div>
+            <div id="float-model-name" class="text-xs font-medium text-slate-100 truncate">model.glb</div>
+        </div>
+        <button id="float-next-model" title="下一個模型 (→)" class="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- 全螢幕檔案拖曳提示遮罩 -->
+    <div id="drop-overlay" class="fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-sm hidden flex-col items-center justify-center p-6 pointer-events-none">
+        <div class="w-full max-w-md border-2 border-dashed border-sky-400 bg-sky-500/10 rounded-3xl p-10 text-center space-y-4 shadow-2xl">
+            <div class="w-16 h-16 mx-auto rounded-2xl bg-sky-500/20 flex items-center justify-center text-sky-400">
+                <svg class="w-9 h-9" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                </svg>
+            </div>
+            <h3 class="text-xl font-bold text-white">放開滑鼠以載入 3D 模型</h3>
+            <p class="text-sm text-slate-300">支援單檔或多檔 .glb / .gltf 格式（支援 Draco 壓縮）</p>
+        </div>
+    </div>
+
+    <!-- 載入中提示遮罩 -->
+    <div id="loading-overlay" class="fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm hidden items-center justify-center">
+        <div class="bg-slate-900 border border-slate-700 px-6 py-5 rounded-2xl flex items-center gap-4 shadow-2xl">
+            <div class="w-6 h-6 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-sm font-medium text-slate-200">正在解析 3D 模型...</span>
+        </div>
+    </div>
+
+    <!-- Toast 訊息通知容器 -->
+    <div id="toast-container" class="fixed bottom-16 sm:bottom-14 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none items-center"></div>
+
+    <!-- 主應用程式腳本 -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+        // ==========================================
+        // 全域狀態變數
+        // ==========================================
+        let scene, camera, renderer, controls;
+        let mainLight, gridHelper, bboxHelper;
+        let gltfLoader;
+        let currentModel = null;
+        let mixer = null;
+        let animations = [];
+        let currentAction = null;
+        let isPlayingAnim = true;
+        let animSpeed = 1.0;
+        let isWireframe = false;
+        let modelRadius = 2;
+        let modelCenterY = 1;
+
+        // 多檔案清單狀態
+        let fileQueue = [];
+        let currentFileIndex = -1;
+
+        const clock = new THREE.Clock();
+
+        // ==========================================
+        // 初始化 Three.js 場景、相機、渲染器與環境光
+        // ==========================================
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth || window.innerWidth;
+            const height = container.clientHeight || window.innerHeight;
+
+            // 建立場景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color('#0f172a');
+
+            // 建立透視相機
+            camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 1000);
+            camera.position.set(3.5, 2.5, 4.5);
+
+            // 建立 WebGL 渲染器（開啟 preserveDrawingBuffer 支援截圖）
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: false,
+                preserveDrawingBuffer: true
+            });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 設定攝影棚級 PBR 環境光 (RoomEnvironment)
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            const roomEnv = new RoomEnvironment();
+            scene.environment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+            roomEnv.dispose();
+            pmremGenerator.dispose();
+
+            // 燈光設定
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            mainLight.position.set(5, 10, 7);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 2048;
+            mainLight.shadow.mapSize.height = 2048;
+            scene.add(mainLight);
+
+            const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.6);
+            fillLight.position.set(-6, 4, -5);
+            scene.add(fillLight);
+
+            // 地面網格輔助線
+            gridHelper = new THREE.GridHelper(12, 24, 0x38bdf8, 0x1e293b);
+            gridHelper.material.opacity = 0.55;
+            gridHelper.material.transparent = true;
+            scene.add(gridHelper);
+
+            // 軌道控制器
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 1.2;
+            controls.minDistance = 0.2;
+            controls.maxDistance = 100;
+            controls.target.set(0, 1, 0);
+
+            // 初始化 GLTF / Draco 載入器
+            gltfLoader = new GLTFLoader();
+            const dracoLoader = new DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+            gltfLoader.setDRACOLoader(dracoLoader);
+
+            // 視窗縮放監聽
+            window.addEventListener('resize', onWindowResize);
+
+            // 載入內建展示模型並啟動渲染迴圈
+            loadDemoModel();
+            animate();
+        }
+
+        // ==========================================
+        // 響應式視窗尺寸更新
+        // ==========================================
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth || window.innerWidth;
+            const height = container.clientHeight || window.innerHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        // ==========================================
+        // 清除並釋放目前場景中的模型資源
+        // ==========================================
+        function clearCurrentModel() {
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+            }
+            animations = [];
+            currentAction = null;
+
+            if (bboxHelper) {
+                scene.remove(bboxHelper);
+                bboxHelper.geometry?.dispose();
+                bboxHelper.material?.dispose();
+                bboxHelper = null;
+            }
+
+            if (currentModel) {
+                scene.remove(currentModel);
+                currentModel.traverse((node) => {
+                    if (node.isMesh) {
+                        node.geometry?.dispose();
+                        if (node.material) {
+                            const mats = Array.isArray(node.material) ? node.material : [node.material];
+                            mats.forEach((mat) => {
+                                Object.values(mat).forEach((val) => {
+                                    if (val && typeof val === 'object' && val.isTexture) {
+                                        val.dispose();
+                                    }
+                                });
+                                mat.dispose();
+                            });
+                        }
+                    }
+                });
+                currentModel = null;
+            }
+        }
+
+        // ==========================================
+        // 載入內建程式化展示模型
+        // ==========================================
+        function loadDemoModel() {
+            clearCurrentModel();
+            fileQueue = [];
+            currentFileIndex = -1;
+            updatePlaylistUI();
+
+            const group = new THREE.Group();
+
+            // 主體金屬扭結
+            const knotGeo = new THREE.TorusKnotGeometry(0.75, 0.24, 180, 32);
+            const knotMat = new THREE.MeshStandardMaterial({
+                color: 0x38bdf8,
+                metalness: 0.85,
+                roughness: 0.18
+            });
+            const knotMesh = new THREE.Mesh(knotGeo, knotMat);
+            knotMesh.castShadow = true;
+            knotMesh.receiveShadow = true;
+            group.add(knotMesh);
+
+            // 中心發光結晶核
+            const coreGeo = new THREE.IcosahedronGeometry(0.36, 1);
+            const coreMat = new THREE.MeshStandardMaterial({
+                color: 0x818cf8,
+                emissive: 0x312e81,
+                emissiveIntensity: 0.6,
+                metalness: 0.3,
+                roughness: 0.1
+            });
+            const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+            group.add(coreMesh);
+
+            // 外圍金屬裝飾環
+            const ringGeo = new THREE.TorusGeometry(1.35, 0.035, 24, 120);
+            const ringMat = new THREE.MeshStandardMaterial({
+                color: 0xe2e8f0,
+                metalness: 0.95,
+                roughness: 0.15
+            });
+            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+            ringMesh.rotation.x = Math.PI / 2.4;
+            ringMesh.rotation.y = Math.PI / 6;
+            group.add(ringMesh);
+
+            setupModel(group, [], '內建展示模型（可拖曳 .glb 檔案）');
+        }
+
+        // ==========================================
+        // 讀取本機 GLB / GLTF 檔案並解析
+        // ==========================================
+        function loadGLBFile(file) {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.classList.add('flex');
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const arrayBuffer = event.target.result;
+                try {
+                    gltfLoader.parse(
+                        arrayBuffer,
+                        '',
+                        (gltf) => {
+                            clearCurrentModel();
+                            setupModel(gltf.scene, gltf.animations || [], file.name);
+                            loadingOverlay.classList.add('hidden');
+                            loadingOverlay.classList.remove('flex');
+                            showToast(`已成功載入：${file.name}`, 'success');
+                        },
+                        (error) => {
+                            console.error('GLTF 解析錯誤:', error);
+                            loadingOverlay.classList.add('hidden');
+                            loadingOverlay.classList.remove('flex');
+                            showToast(`解析失敗：${file.name}（請確認檔案格式完整）`, 'error');
+                        }
+                    );
+                } catch (err) {
+                    console.error('載入例外:', err);
+                    loadingOverlay.classList.add('hidden');
+                    loadingOverlay.classList.remove('flex');
+                    showToast('載入模型時發生錯誤', 'error');
+                }
+            };
+
+            reader.onerror = () => {
+                loadingOverlay.classList.add('hidden');
+                loadingOverlay.classList.remove('flex');
+                showToast('讀取檔案失敗', 'error');
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // ==========================================
+        // 處理單檔與多檔開啟邏輯
+        // ==========================================
+        function handleFiles(fileList, mode = 'single') {
+            if (!fileList || fileList.length === 0) return;
+
+            // 過濾有效的 .glb 與 .gltf 檔案
+            const validFiles = Array.from(fileList).filter((file) => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                return ext === 'glb' || ext === 'gltf';
+            });
+
+            if (validFiles.length === 0) {
+                showToast('請選擇 .glb 或 .gltf 格式的 3D 模型檔案', 'error');
+                return;
+            }
+
+            if (mode === 'single' || validFiles.length === 1) {
+                // 單檔模式：直接載入單一模型並隱藏多檔清單
+                fileQueue = [];
+                currentFileIndex = -1;
+                updatePlaylistUI();
+                loadGLBFile(validFiles[0]);
+            } else {
+                // 多檔模式：建立模型切換清單並載入第一個模型
+                fileQueue = validFiles;
+                currentFileIndex = 0;
+                updatePlaylistUI();
+                loadGLBFile(fileQueue[0]);
+                showToast(`已開啟 ${fileQueue.length} 個模型，可使用清單或左右方向鍵切換`, 'info');
+            }
+        }
+
+        function selectModelFromQueue(index) {
+            if (fileQueue.length === 0) return;
+            const nextIndex = (index + fileQueue.length) % fileQueue.length;
+            currentFileIndex = nextIndex;
+            updatePlaylistUI();
+            loadGLBFile(fileQueue[currentFileIndex]);
+        }
+
+        function updatePlaylistUI() {
+            const section = document.getElementById('playlist-section');
+            const listEl = document.getElementById('playlist-items');
+            const countEl = document.getElementById('playlist-count');
+            const floatNav = document.getElementById('multi-file-nav');
+            const floatCounter = document.getElementById('float-model-counter');
+            const floatName = document.getElementById('float-model-name');
+
+            if (fileQueue.length <= 1) {
+                section.classList.add('hidden');
+                floatNav.classList.add('hidden');
+                floatNav.classList.remove('flex');
+                listEl.innerHTML = '';
+                return;
+            }
+
+            section.classList.remove('hidden');
+            floatNav.classList.remove('hidden');
+            floatNav.classList.add('flex');
+
+            const counterText = `${currentFileIndex + 1} / ${fileQueue.length}`;
+            countEl.textContent = counterText;
+            floatCounter.textContent = counterText;
+            floatName.textContent = fileQueue[currentFileIndex]?.name || '';
+
+            listEl.innerHTML = '';
+            fileQueue.forEach((file, idx) => {
+                const isActive = idx === currentFileIndex;
+                const li = document.createElement('li');
+                li.className = `flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition ${
+                    isActive
+                        ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/50 font-medium'
+                        : 'text-slate-300 hover:bg-slate-800/80 border border-transparent'
+                }`;
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'truncate flex-1';
+                nameSpan.title = file.name;
+                nameSpan.textContent = `${idx + 1}. ${file.name}`;
+                li.appendChild(nameSpan);
+
+                if (isActive) {
+                    const dot = document.createElement('span');
+                    dot.className = 'w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0';
+                    li.appendChild(dot);
+                }
+
+                li.addEventListener('click', () => {
+                    if (idx !== currentFileIndex) {
+                        selectModelFromQueue(idx);
+                    }
+                });
+                listEl.appendChild(li);
+            });
+        }
+
+        // ==========================================
+        // 模型置中、縮放、統計資訊與相機對焦
+        // ==========================================
+        function setupModel(model, anims, filename) {
+            currentModel = model;
+            scene.add(currentModel);
+
+            // 計算原始邊界框並自動縮放至合適檢視大小
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+
+            if (maxDim > 0) {
+                const targetSize = 3.0;
+                const scaleFactor = targetSize / maxDim;
+                currentModel.scale.multiplyScalar(scaleFactor);
+            }
+
+            // 重新計算縮放後的邊界框，將模型水平置中並貼齊地面 (y = 0)
+            const scaledBox = new THREE.Box3().setFromObject(currentModel);
+            const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+            currentModel.position.x -= scaledCenter.x;
+            currentModel.position.z -= scaledCenter.z;
+            currentModel.position.y -= scaledBox.min.y;
+
+            // 取得最終邊界球作為相機視角定位基準
+            const finalBox = new THREE.Box3().setFromObject(currentModel);
+            const finalSize = finalBox.getSize(new THREE.Vector3());
+            const sphere = finalBox.getBoundingSphere(new THREE.Sphere());
+            modelRadius = Math.max(sphere.radius, 0.5);
+            modelCenterY = finalSize.y / 2;
+
+            // 建立邊界框輔助物件
+            bboxHelper = new THREE.BoxHelper(currentModel, 0x38bdf8);
+            const isBboxActive = document.getElementById('toggle-bbox').classList.contains('active-btn');
+            bboxHelper.visible = isBboxActive;
+            scene.add(bboxHelper);
+
+            // 統計網格、頂點、三角面並套用目前線框設定
+            let meshCount = 0;
+            let triangleCount = 0;
+            let vertexCount = 0;
+
+            currentModel.traverse((node) => {
+                if (node.isMesh) {
+                    meshCount++;
+                    const geom = node.geometry;
+                    if (geom) {
+                        const pos = geom.attributes.position;
+                        if (pos) vertexCount += pos.count;
+                        if (geom.index) {
+                            triangleCount += geom.index.count / 3;
+                        } else if (pos) {
+                            triangleCount += pos.count / 3;
+                        }
+                    }
+                    if (node.material) {
+                        const mats = Array.isArray(node.material) ? node.material : [node.material];
+                        mats.forEach((m) => (m.wireframe = isWireframe));
+                    }
+                }
+            });
+
+            // 更新 UI 統計與檔名
+            document.getElementById('current-filename').textContent = filename;
+            document.getElementById('stat-meshes').textContent = meshCount.toLocaleString();
+            document.getElementById('stat-triangles').textContent = Math.round(triangleCount).toLocaleString();
+            document.getElementById('stat-vertices').textContent = vertexCount.toLocaleString();
+            document.getElementById('stat-animations').textContent = anims.length.toString();
+
+            // 設定模型動畫
+            const animSection = document.getElementById('animation-section');
+            const animSelect = document.getElementById('animation-select');
+            animSelect.innerHTML = '';
+
+            if (anims && anims.length > 0) {
+                animations = anims;
+                mixer = new THREE.AnimationMixer(currentModel);
+                anims.forEach((clip, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = clip.name || `動畫軌道 ${idx + 1}`;
+                    animSelect.appendChild(opt);
+                });
+                animSection.classList.remove('hidden');
+                isPlayingAnim = true;
+                document.getElementById('btn-play-pause').textContent = '暫停';
+                playAnimation(0);
+            } else {
+                animSection.classList.add('hidden');
+            }
+
+            // 重置相機對焦至模型
+            setCameraView('reset');
+        }
+
+        // ==========================================
+        // 播放指定索引的動畫軌道
+        // ==========================================
+        function playAnimation(index) {
+            if (!mixer || !animations[index]) return;
+            if (currentAction) {
+                currentAction.stop();
+            }
+            currentAction = mixer.clipAction(animations[index]);
+            mixer.timeScale = animSpeed;
+            currentAction.reset().play();
+            currentAction.paused = !isPlayingAnim;
+        }
+
+        // ==========================================
+        // 快速切換相機預設視角
+        // ==========================================
+        function setCameraView(view) {
+            const dist = modelRadius * 2.4;
+            const target = new THREE.Vector3(0, modelCenterY, 0);
+
+            switch (view) {
+                case 'front':
+                    camera.position.set(0, modelCenterY, dist);
+                    break;
+                case 'back':
+                    camera.position.set(0, modelCenterY, -dist);
+                    break;
+                case 'top':
+                    camera.position.set(0, modelCenterY + dist, 0.01);
+                    break;
+                case 'left':
+                    camera.position.set(-dist, modelCenterY, 0);
+                    break;
+                case 'right':
+                    camera.position.set(dist, modelCenterY, 0);
+                    break;
+                case 'reset':
+                default:
+                    camera.position.set(dist * 0.72, modelCenterY + dist * 0.45, dist * 0.85);
+                    break;
+            }
+
+            controls.target.copy(target);
+            controls.update();
+        }
+
+        // ==========================================
+        // 切換按鈕視覺樣式輔助函式
+        // ==========================================
+        function setToggleButtonStyle(btn, isActive) {
+            if (isActive) {
+                btn.classList.add('active-btn', 'bg-sky-500/20', 'text-sky-300', 'border-sky-500/40');
+                btn.classList.remove('bg-slate-800/70', 'hover:bg-slate-700/80', 'border-slate-700/60', 'text-slate-200');
+            } else {
+                btn.classList.remove('active-btn', 'bg-sky-500/20', 'text-sky-300', 'border-sky-500/40');
+                btn.classList.add('bg-slate-800/70', 'hover:bg-slate-700/80', 'border-slate-700/60');
+            }
+        }
+
+        // ==========================================
+        // Toast 訊息提示
+        // ==========================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const colorClasses = {
+                success: 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200',
+                error: 'bg-rose-950/90 border-rose-500/50 text-rose-200',
+                info: 'bg-slate-900/90 border-sky-500/50 text-sky-200'
+            };
+
+            toast.className = `px-4 py-2.5 rounded-xl border backdrop-blur-md shadow-xl text-xs sm:text-sm font-medium transition-all duration-300 opacity-0 translate-y-2 ${colorClasses[type] || colorClasses.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-2');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ==========================================
+        // 主動畫渲染迴圈
+        // ==========================================
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (mixer) {
+                mixer.update(delta);
+                if (bboxHelper && bboxHelper.visible) {
+                    bboxHelper.update();
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // ==========================================
+        // 綁定所有 UI 與互動事件
+        // ==========================================
+        function bindEvents() {
+            // 單個檔案選擇上傳
+            const singleInput = document.getElementById('file-input-single');
+            singleInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    handleFiles(e.target.files, 'single');
+                    singleInput.value = '';
+                }
+            });
+
+            // 多個檔案選擇上傳
+            const multiInput = document.getElementById('file-input-multi');
+            multiInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    handleFiles(e.target.files, 'multi');
+                    multiInput.value = '';
+                }
+            });
+
+            // 多檔切換按鈕（右側面板與底部浮動列）
+            document.getElementById('btn-prev-model').addEventListener('click', () => selectModelFromQueue(currentFileIndex - 1));
+            document.getElementById('btn-next-model').addEventListener('click', () => selectModelFromQueue(currentFileIndex + 1));
+            document.getElementById('float-prev-model').addEventListener('click', () => selectModelFromQueue(currentFileIndex - 1));
+            document.getElementById('float-next-model').addEventListener('click', () => selectModelFromQueue(currentFileIndex + 1));
+
+            // 清空多檔清單
+            document.getElementById('btn-clear-playlist').addEventListener('click', () => {
+                fileQueue = [];
+                currentFileIndex = -1;
+                updatePlaylistUI();
+                showToast('已清空模型清單', 'info');
+            });
+
+            // 鍵盤左右方向鍵切換多檔模型
+            window.addEventListener('keydown', (e) => {
+                if (fileQueue.length <= 1) return;
+                const tag = document.activeElement?.tagName;
+                if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+                if (e.key === 'ArrowLeft') {
+                    selectModelFromQueue(currentFileIndex - 1);
+                } else if (e.key === 'ArrowRight') {
+                    selectModelFromQueue(currentFileIndex + 1);
+                }
+            });
+
+            // 全視窗拖曳上傳 (Drag & Drop)
+            const dropOverlay = document.getElementById('drop-overlay');
+            let dragCounter = 0;
+
+            window.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                dragCounter++;
+                dropOverlay.classList.remove('hidden');
+                dropOverlay.classList.add('flex');
+            });
+
+            window.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            window.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dragCounter--;
+                if (dragCounter <= 0) {
+                    dragCounter = 0;
+                    dropOverlay.classList.add('hidden');
+                    dropOverlay.classList.remove('flex');
+                }
+            });
+
+            window.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dragCounter = 0;
+                dropOverlay.classList.add('hidden');
+                dropOverlay.classList.remove('flex');
+
+                if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                    const mode = e.dataTransfer.files.length > 1 ? 'multi' : 'single';
+                    handleFiles(e.dataTransfer.files, mode);
+                }
+            });
+
+            // 展開/收合右側控制面板
+            const panel = document.getElementById('control-panel');
+            document.getElementById('btn-toggle-panel').addEventListener('click', () => {
+                const isHidden = panel.classList.contains('translate-x-[120%]') || panel.classList.contains('md:translate-x-[120%]');
+                if (isHidden) {
+                    panel.classList.remove('translate-x-[120%]', 'md:translate-x-[120%]');
+                    panel.classList.add('translate-x-0', 'md:translate-x-0');
+                } else {
+                    panel.classList.add('translate-x-[120%]', 'md:translate-x-[120%]');
+                    panel.classList.remove('translate-x-0', 'md:translate-x-0');
+                }
+            });
+
+            document.getElementById('btn-close-panel').addEventListener('click', () => {
+                panel.classList.add('translate-x-[120%]');
+                panel.classList.remove('translate-x-0');
+            });
+
+            // 截圖功能
+            document.getElementById('btn-screenshot').addEventListener('click', () => {
+                renderer.render(scene, camera);
+                const dataURL = renderer.domElement.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = `glb-viewer-${Date.now()}.png`;
+                link.href = dataURL;
+                link.click();
+                showToast('已下載目前視角截圖 (PNG)', 'success');
+            });
+
+            // 線框模式切換
+            const btnWireframe = document.getElementById('toggle-wireframe');
+            btnWireframe.addEventListener('click', () => {
+                isWireframe = !isWireframe;
+                setToggleButtonStyle(btnWireframe, isWireframe);
+                if (currentModel) {
+                    currentModel.traverse((node) => {
+                        if (node.isMesh && node.material) {
+                            const mats = Array.isArray(node.material) ? node.material : [node.material];
+                            mats.forEach((m) => (m.wireframe = isWireframe));
+                        }
+                    });
+                }
+            });
+
+            // 自動旋轉切換
+            const btnAutoRotate = document.getElementById('toggle-autorotate');
+            btnAutoRotate.classList.add('active-btn');
+            btnAutoRotate.addEventListener('click', () => {
+                controls.autoRotate = !controls.autoRotate;
+                setToggleButtonStyle(btnAutoRotate, controls.autoRotate);
+            });
+
+            // 地面網格切換
+            const btnGrid = document.getElementById('toggle-grid');
+            btnGrid.classList.add('active-btn');
+            btnGrid.addEventListener('click', () => {
+                gridHelper.visible = !gridHelper.visible;
+                setToggleButtonStyle(btnGrid, gridHelper.visible);
+            });
+
+            // 邊界框切換
+            const btnBbox = document.getElementById('toggle-bbox');
+            btnBbox.addEventListener('click', () => {
+                const nextState = !btnBbox.classList.contains('active-btn');
+                setToggleButtonStyle(btnBbox, nextState);
+                if (bboxHelper) bboxHelper.visible = nextState;
+            });
+
+            // 曝光滑桿
+            const sliderExposure = document.getElementById('slider-exposure');
+            sliderExposure.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                renderer.toneMappingExposure = val;
+                document.getElementById('exposure-val').textContent = val.toFixed(2);
+            });
+
+            // 主光源滑桿
+            const sliderLight = document.getElementById('slider-light');
+            sliderLight.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                mainLight.intensity = val;
+                document.getElementById('light-val').textContent = val.toFixed(1);
+            });
+
+            // 背景顏色預設與自訂
+            const bgColorPicker = document.getElementById('bg-color-picker');
+            document.querySelectorAll('.bg-preset').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const colorHex = btn.getAttribute('data-bg');
+                    scene.background = new THREE.Color(colorHex);
+                    bgColorPicker.value = colorHex;
+                    document.querySelectorAll('.bg-preset').forEach((b) => b.classList.replace('border-sky-400', 'border-slate-600'));
+                    btn.classList.replace('border-slate-600', 'border-sky-400');
+                });
+            });
+
+            bgColorPicker.addEventListener('input', (e) => {
+                scene.background = new THREE.Color(e.target.value);
+            });
+
+            // 相機視角切換按鈕
+            document.querySelectorAll('.cam-view-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    setCameraView(btn.getAttribute('data-view'));
+                });
+            });
+
+            // 動畫控制事件
+            document.getElementById('animation-select').addEventListener('change', (e) => {
+                playAnimation(parseInt(e.target.value, 10));
+            });
+
+            document.getElementById('btn-play-pause').addEventListener('click', (e) => {
+                isPlayingAnim = !isPlayingAnim;
+                if (currentAction) {
+                    currentAction.paused = !isPlayingAnim;
+                }
+                e.target.textContent = isPlayingAnim ? '暫停' : '播放';
+            });
+
+            document.getElementById('anim-speed').addEventListener('input', (e) => {
+                animSpeed = parseFloat(e.target.value);
+                document.getElementById('anim-speed-val').textContent = `${animSpeed.toFixed(1)}x`;
+                if (mixer) mixer.timeScale = animSpeed;
+            });
+
+            // 重新載入展示模型
+            document.getElementById('btn-load-demo').addEventListener('click', () => {
+                loadDemoModel();
+                showToast('已恢復內建展示模型', 'info');
+            });
+        }
+
+        // 頁面載入完成後初始化
+        window.addEventListener('load', () => {
+            initScene();
+            bindEvents();
+        });
+    </script>
+</body>
+</html>
