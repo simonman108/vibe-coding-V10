@@ -1,0 +1,2561 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>點名紙轉 Word 出席表系統 (FE-RN02)</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 JSZip 用於直接讀取並修改原始 .docx 檔案，完整保留原格式 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- 載入 docx 函式庫作為未上傳範本時的備用方案 -->
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+    <!-- 載入 Google Fonts: Noto Sans TC 與 Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* 自訂捲軸樣式，讓表格在橫向捲動時更美觀 */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* 出席狀態格子的平滑過渡 */
+        .att-cell {
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+        .att-cell:active {
+            transform: scale(0.92);
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold text-slate-900 leading-tight">點名紙轉 Word 出席表系統</h1>
+                    <p class="text-xs text-slate-500">FE-RN02 學校發展資助計劃報告書專用</p>
+                </div>
+            </div>
+
+            <!-- 班別切換器 (A班 / B班) -->
+            <div class="flex items-center gap-2 w-full sm:w-auto bg-slate-100 p-1 rounded-xl">
+                <button id="btnClassA" onclick="switchClass('A')" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-700 shadow-sm">
+                    出席表 A 班 (12人)
+                </button>
+                <button id="btnClassB" onclick="switchClass('B')" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-slate-900">
+                    出席表 B 班 (13人)
+                </button>
+            </div>
+        </div>
+
+        <!-- 專屬 UID 與雲端／本機保存狀態列 -->
+        <div class="bg-slate-50 border-t border-slate-200/80">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="font-semibold text-slate-600 shrink-0">專屬 UID：</span>
+                    <code id="userUidDisplay" class="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-indigo-700 font-mono text-[11px] sm:text-xs break-all">連線中...</code>
+                    <button onclick="copyUserUid()" title="複製完整 UID" class="px-2 py-0.5 rounded-md bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 font-medium transition-colors shrink-0">
+                        複製
+                    </button>
+                </div>
+                <div id="cloudSyncBadge" class="flex items-center gap-1.5 text-slate-500 font-medium shrink-0">
+                    <span id="cloudSyncDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="cloudSyncText">正在初始化保存服務...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主內容區 -->
+    <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1">
+
+        <!-- 步驟一：上傳原始 Word 出席表範本 (.docx) -->
+        <section class="bg-white rounded-2xl border border-emerald-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-emerald-100 flex flex-wrap items-center justify-between gap-2 bg-emerald-50/60">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-base">上傳原始 Word 出席表範本 (.docx) — 保留原檔格式</h2>
+                        <p class="text-xs text-slate-500">上傳原檔後，系統將鎖定原表格欄寬與列高，必要時自動縮小日期、時間與出席符號字體以符合欄位寬度</p>
+                    </div>
+                </div>
+                <span id="templateStatusBadge" class="text-xs font-semibold px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    尚未上傳原檔範本
+                </span>
+            </div>
+
+            <div class="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div id="templateIconBox" class="w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <p id="templateFileName" class="text-sm font-semibold text-slate-700 truncate">請上傳本班的原始 Word 檔（例如 FE-RN02...出席表A.docx）</p>
+                        <p id="templateFileDetail" class="text-xs text-slate-500 mt-0.5">A 班與 B 班各上傳一次即可自動綁定您的 UID 並保存，下次開啟免重複上傳。</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                    <label for="docxTemplateInput" class="flex-1 sm:flex-none cursor-pointer px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors text-center">
+                        選擇 Word 範本 (.docx)
+                        <input id="docxTemplateInput" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" onchange="handleTemplateUpload(event)" />
+                    </label>
+                    <button id="btnSyncTemplateRoster" onclick="syncCurrentTemplateRoster()" class="hidden px-3 py-2.5 rounded-xl text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors">
+                        同步範本名單
+                    </button>
+                    <button id="btnRemoveTemplate" onclick="removeCurrentTemplate()" class="hidden px-3 py-2.5 rounded-xl text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors">
+                        移除範本
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 步驟二：上傳點名紙圖檔與 AI 辨識 -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <h2 class="font-bold text-slate-800 text-base">上傳點名紙圖檔（支援多張相片 / AI 自動辨識）</h2>
+                </div>
+                <span class="text-xs text-slate-500 bg-white px-2.5 py-1 rounded-full border border-slate-200">
+                    目前選擇：<strong id="currentClassBadge" class="text-indigo-600">出席表 A 班</strong>
+                </span>
+            </div>
+
+            <div class="p-5">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    <!-- 拖曳上傳區 -->
+                    <div class="lg:col-span-5">
+                        <label id="dropZone" for="imageInput" class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-indigo-300 rounded-xl bg-indigo-50/40 hover:bg-indigo-50 transition-colors cursor-pointer p-4 text-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-indigo-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <p class="text-sm font-semibold text-indigo-700">點擊選擇或拖曳點名紙圖片到此處</p>
+                            <p class="text-xs text-slate-500 mt-1">支援 JPG、PNG、WEBP，可一次上傳多張點名紙</p>
+                            <input id="imageInput" type="file" accept="image/*" multiple class="hidden" onchange="handleFileSelect(event)" />
+                        </label>
+                    </div>
+
+                    <!-- 預覽與 AI 辨識操作區 -->
+                    <div class="lg:col-span-7 flex flex-col justify-between h-full space-y-4">
+                        <div id="previewContainer" class="min-h-[120px] bg-slate-50 rounded-xl border border-slate-200 p-3 flex flex-wrap gap-3 items-center justify-center">
+                            <p id="emptyPreviewText" class="text-sm text-slate-400">尚未上傳點名紙圖檔。上傳後點擊下方按鈕，AI 將自動讀取日期、時間與學生出席紀錄。</p>
+                        </div>
+
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <button onclick="clearUploadedImages()" class="px-3.5 py-2 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                                清除圖片
+                            </button>
+                            <button id="btnAnalyze" onclick="analyzeImagesWithAI()" disabled class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-sm transition-all flex items-center justify-center gap-2">
+                                <svg id="analyzeIcon" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                <svg id="analyzeSpinner" class="hidden animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span id="analyzeBtnText">AI 智能辨識點名紙</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 表頭基本資料（僅在未上傳原檔範本時使用，預設折疊） -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <button onclick="toggleHeaderSection()" class="w-full px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 hover:bg-slate-100/70 transition-colors text-left">
+                <div class="flex items-center gap-2.5">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 text-xs font-bold">選填</span>
+                    <div>
+                        <h2 class="font-bold text-slate-700 text-sm">表頭基本資料（僅在「未上傳原始 Word 範本」時使用）</h2>
+                        <p class="text-xs text-slate-400">若已上傳原始 .docx 範本，匯出時將完整保留原檔表頭，不會覆蓋</p>
+                    </div>
+                </div>
+                <svg id="headerChevron" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-500 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+
+            <div id="headerFormBody" class="hidden p-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">學校年度 (例：2025/2026)</label>
+                        <input type="text" id="meta_year" oninput="saveMetaField('year', this.value)" placeholder="2025/2026" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">校部編號</label>
+                        <input type="text" id="meta_schoolCode" oninput="saveMetaField('schoolCode', this.value)" placeholder="輸入校部編號" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">校部名稱</label>
+                        <input type="text" id="meta_schoolName" oninput="saveMetaField('schoolName', this.value)" placeholder="輸入校部名稱" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">資助主題</label>
+                        <input type="text" id="meta_theme" oninput="saveMetaField('theme', this.value)" placeholder="輸入資助主題" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">上課地點</label>
+                        <input type="text" id="meta_location" oninput="saveMetaField('location', this.value)" placeholder="例：禮堂 / 電腦室" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">資助項目編號</label>
+                        <input type="text" id="meta_projectCode" oninput="saveMetaField('projectCode', this.value)" placeholder="必須與系統資料相同編號" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="sm:col-span-2 lg:col-span-3">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">資助項目名稱</label>
+                        <input type="text" id="meta_projectName" oninput="saveMetaField('projectName', this.value)" placeholder="必須與系統資料相同名稱" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">導師姓名</label>
+                        <input type="text" id="meta_tutorName" oninput="saveMetaField('tutorName', this.value)" placeholder="輸入導師姓名" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="sm:col-span-1 lg:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">導師身份</label>
+                        <select id="meta_tutorType" onchange="saveMetaField('tutorType', this.value)" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <option value="external">校外</option>
+                            <option value="internal_teaching">校內 (教學人員)</option>
+                            <option value="internal_staff">校內 (專職人員)</option>
+                            <option value="internal_other">校內 (其他人員)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">助教／協助人員姓名（倘有）</label>
+                        <input type="text" id="meta_assistantName" oninput="saveMetaField('assistantName', this.value)" placeholder="留空如無" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="sm:col-span-1 lg:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">助教身份（倘有）</label>
+                        <select id="meta_assistantType" onchange="saveMetaField('assistantType', this.value)" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <option value="none">不適用 / 未選擇</option>
+                            <option value="external">校外</option>
+                            <option value="internal_teaching">校內 (教學人員)</option>
+                            <option value="internal_staff">校內 (專職人員)</option>
+                            <option value="internal_other">校內 (其他人員)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">實施期間</label>
+                        <input type="text" id="meta_period" oninput="saveMetaField('period', this.value)" placeholder="例：2025年9月至2026年6月" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">每節 (分鐘)</label>
+                        <input type="text" id="meta_minutesPerSession" oninput="saveMetaField('minutesPerSession', this.value)" placeholder="例：60" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">總節數</label>
+                        <input type="text" id="meta_totalSessions" oninput="saveMetaField('totalSessions', this.value)" placeholder="例：10" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="sm:col-span-2 lg:col-span-3">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">備註（倘有）</label>
+                        <input type="text" id="meta_remarks" oninput="saveMetaField('remarks', this.value)" placeholder="選填" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 步驟三：校對出席表與下載 Word -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-base">校對與編輯出席表</h2>
+                        <p class="text-xs text-slate-500">
+                            點擊格子切換狀態：<span class="text-emerald-600 font-bold">✓ 出席</span> → <span class="text-rose-600 font-bold">X 缺席</span> → <span class="text-amber-600 font-bold">○ 病假</span> → 空白；
+                            輸入日期（如 <code class="bg-slate-100 px-1 rounded">11/7</code> 或 <code class="bg-slate-100 px-1 rounded">11月7日</code>）會依本年度自動填入星期與星期六／星期一時段
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="askResetAttendance()" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors">
+                        清空出席紀錄
+                    </button>
+                    <button id="btnExportWord" onclick="exportToWord()" class="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-200 transition-all flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span id="exportWordBtnText">下載 Word 出席表 (.docx)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 即時預覽下載檔名 -->
+            <div class="px-5 py-2 bg-emerald-50/50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="font-semibold text-emerald-700 shrink-0">下載檔名預覽：</span>
+                    <span id="downloadFileNamePreview" class="font-mono text-slate-800 bg-white px-2 py-0.5 rounded border border-emerald-200 truncate">初中資訊科技校隊A班11月點名紙.docx</span>
+                </div>
+                <span class="text-[11px] text-slate-400">月份會依上方點名紙日期自動偵測（無日期時預設為本月）</span>
+            </div>
+
+            <!-- 表格外層水平捲動容器 -->
+            <div class="overflow-x-auto custom-scrollbar p-4">
+                <table class="w-full border-collapse text-xs sm:text-sm min-w-[1080px]" id="attendanceTable">
+                    <!-- 動態由 JS 渲染 -->
+                </table>
+            </div>
+        </section>
+
+        <!-- 網頁最下方摘要：缺席／病假原因（選填，不匯出至 Word） -->
+        <section id="absenceSummarySection" class="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-amber-100 flex flex-wrap items-center justify-between gap-2 bg-amber-50/60">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-base">缺席／病假原因摘要（選填）</h2>
+                        <p class="text-xs text-slate-500">僅供日後於網頁查看並自動保存至您的 UID，不會寫入或下載到 Word 出席表檔案中</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="absenceCountBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-white text-amber-800 border border-amber-200">
+                        共 0 筆紀錄
+                    </span>
+                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                        不匯出至 Word
+                    </span>
+                </div>
+            </div>
+            <div id="absenceSummaryList" class="p-5">
+                <!-- 動態由 JS 渲染缺席與病假清單 -->
+            </div>
+        </section>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+        所有範本與出席紀錄皆已綁定您的專屬 UID 並自動保存，確保下次開啟保留上次上傳結果。
+    </footer>
+
+    <!-- 自訂確認對話框 (取代 confirm()) -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4">
+            <h3 id="confirmTitle" class="text-lg font-bold text-slate-900">確認操作</h3>
+            <p id="confirmMessage" class="text-sm text-slate-600">您確定要執行此操作嗎？</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">取消</button>
+                <button id="confirmOkBtn" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖片放大檢視視窗 -->
+    <div id="imageModal" onclick="closeImageModal()" class="fixed inset-0 bg-slate-900/80 z-50 hidden items-center justify-center p-4 cursor-zoom-out">
+        <img id="modalImg" src="" alt="點名紙放大預覽" class="max-w-full max-h-[90vh] rounded-xl shadow-2xl object-contain">
+    </div>
+
+    <!-- 通知訊息框 Toast (取代 alert()) -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- 雲端儲存與專屬 UID 驗證模組（含本機自動降級機制） -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let templatesUnsubscribe = null;
+
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            return btoa(binary);
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary = atob(base64);
+            const len = binary.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        async function initCloudAuth() {
+            if (!firebaseConfig) {
+                throw new Error('未偵測到雲端設定');
+            }
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            currentUser = auth.currentUser;
+            if (!currentUser) {
+                throw new Error('UID 驗證失敗');
+            }
+            return currentUser.uid;
+        }
+
+        function subscribeTemplates(onTemplatesUpdate, onError) {
+            if (!currentUser || !db) return;
+            if (templatesUnsubscribe) templatesUnsubscribe();
+
+            const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'word_templates');
+            templatesUnsubscribe = onSnapshot(
+                colRef,
+                (snapshot) => {
+                    const result = { A: null, B: null };
+                    snapshot.forEach((docSnap) => {
+                        const key = docSnap.id;
+                        if (key === 'A' || key === 'B') {
+                            const d = docSnap.data();
+                            if (d && d.base64) {
+                                result[key] = {
+                                    name: d.name || ('出席表' + key + '.docx'),
+                                    buffer: base64ToArrayBuffer(d.base64),
+                                    info: d.info || '已從雲端載入上次保存的原始 Word 範本。',
+                                    updatedAt: d.updatedAt || ''
+                                };
+                            }
+                        }
+                    });
+                    if (typeof onTemplatesUpdate === 'function') {
+                        onTemplatesUpdate(result);
+                    }
+                },
+                (err) => {
+                    console.error('同步範本失敗：', err);
+                    if (typeof onError === 'function') onError(err);
+                }
+            );
+        }
+
+        async function saveTemplate(classKey, tplObj) {
+            if (!currentUser || !db) return false;
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'word_templates', classKey);
+            if (!tplObj) {
+                await deleteDoc(docRef);
+                return true;
+            }
+
+            const base64 = arrayBufferToBase64(tplObj.buffer);
+            if (base64.length > 900000) {
+                throw new Error('此 Word 檔案體積較大（超過雲端單檔上限），已改為本機保存。');
+            }
+
+            await setDoc(docRef, {
+                name: tplObj.name,
+                base64: base64,
+                info: tplObj.info || '',
+                updatedAt: new Date().toISOString()
+            });
+            return true;
+        }
+
+        async function loadAppState() {
+            if (!currentUser || !db) return null;
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'attendance_state', 'main');
+            const snap = await getDoc(docRef);
+            if (!snap.exists()) return null;
+            const data = snap.data();
+            if (data && data.classesJson) {
+                return {
+                    currentClass: data.currentClass === 'B' ? 'B' : 'A',
+                    classes: JSON.parse(data.classesJson)
+                };
+            }
+            return null;
+        }
+
+        async function saveAppState(stateObj) {
+            if (!currentUser || !db) return;
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'attendance_state', 'main');
+            await setDoc(docRef, {
+                currentClass: stateObj.currentClass,
+                classesJson: JSON.stringify(stateObj.classes),
+                updatedAt: new Date().toISOString()
+            });
+        }
+
+        window.cloudStore = {
+            init: initCloudAuth,
+            getUid: () => (currentUser ? currentUser.uid : ''),
+            subscribeTemplates,
+            saveTemplate,
+            loadAppState,
+            saveAppState
+        };
+
+        // 通知主腳本模組已就緒
+        window.dispatchEvent(new CustomEvent('cloudStoreReady'));
+    </script>
+
+    <script>
+        // =========================================================================
+        // 1. 預設資料結構（內建您上傳的 A 班與 B 班學生名單）
+        // =========================================================================
+        const DEFAULT_ROSTERS = {
+            A: [
+                { id: '', name: '王梓澄', grade: 'F1B' },
+                { id: '', name: '陳信宇', grade: 'F1B' },
+                { id: '', name: '莫梓俊', grade: 'F1E' },
+                { id: '', name: '周曉駿', grade: 'F1E' },
+                { id: '', name: '趙謙之', grade: 'F1F' },
+                { id: '', name: '蘇靖皓', grade: 'F1F' },
+                { id: '', name: '賀卓珩', grade: 'F1F' },
+                { id: '', name: '劉志鍵', grade: 'F2A' },
+                { id: '', name: '黃凱悅', grade: 'F2B' },
+                { id: '', name: '江洋', grade: 'F2B' },
+                { id: '', name: '鍾汶深', grade: 'F2B' },
+                { id: '', name: '廖永健', grade: 'F2B' },
+                { id: '', name: '', grade: '' },
+                { id: '', name: '', grade: '' },
+                { id: '', name: '', grade: '' }
+            ],
+            B: [
+                { id: '', name: '林錦城', grade: 'F2B' },
+                { id: '', name: '黃柏賢', grade: 'F2C' },
+                { id: '', name: '黃煒橋', grade: 'F2C' },
+                { id: '', name: '梁文俊', grade: 'F2C' },
+                { id: '', name: '周子霖', grade: 'F2D' },
+                { id: '', name: '李浩銘', grade: 'F2E' },
+                { id: '', name: '李思衡', grade: 'F2E' },
+                { id: '', name: '黃浠賢', grade: 'F3A' },
+                { id: '', name: '甘焯賢', grade: 'F3B' },
+                { id: '', name: '吳孜文', grade: 'F3B' },
+                { id: '', name: '梁永琛', grade: 'F3D' },
+                { id: '', name: '蔡子灝', grade: 'F3F' },
+                { id: '', name: '古樂潼', grade: 'F3F' },
+                { id: '', name: '', grade: '' },
+                { id: '', name: '', grade: '' }
+            ]
+        };
+
+        const SESSION_COUNT = 10;
+        const LOCAL_UID_KEY = 'fern02_local_uid_v1';
+        const LOCAL_STATE_KEY_PREFIX = 'fern02_state_';
+        const IDB_NAME = 'fern02_templates_db_v1';
+        const IDB_STORE = 'templates';
+
+        function createInitialClassState(classKey) {
+            return {
+                meta: {
+                    year: `${new Date().getFullYear() - 1}/${new Date().getFullYear()}`,
+                    schoolCode: '',
+                    schoolName: '',
+                    theme: '',
+                    location: '',
+                    projectName: '',
+                    projectCode: '',
+                    tutorName: '',
+                    tutorType: 'external',
+                    assistantName: '',
+                    assistantType: 'none',
+                    period: '',
+                    minutesPerSession: '',
+                    totalSessions: '',
+                    remarks: ''
+                },
+                sessions: Array.from({ length: SESSION_COUNT }, (_, i) => ({
+                    index: i + 1,
+                    date: '',
+                    weekday: '',
+                    startTime: '',
+                    endTime: ''
+                })),
+                students: DEFAULT_ROSTERS[classKey].map(s => ({
+                    ...s,
+                    attendance: Array(SESSION_COUNT).fill('')
+                })),
+                absenceReasons: {}
+            };
+        }
+
+        let appState = {
+            currentClass: 'A',
+            classes: {
+                A: createInitialClassState('A'),
+                B: createInitialClassState('B')
+            }
+        };
+
+        let uploadedImages = [];
+        let wordTemplates = { A: null, B: null };
+        let activeUid = '';
+        let isCloudMode = false;
+        let saveStateTimer = null;
+
+        function getCurrentData() {
+            return appState.classes[appState.currentClass];
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // =========================================================================
+        // 2. 本機 IndexedDB 儲存（作為離線／無雲端設定時之永久保存）
+        // =========================================================================
+        function getOrCreateLocalUid() {
+            try {
+                let uid = localStorage.getItem(LOCAL_UID_KEY);
+                if (!uid) {
+                    uid = 'LOCAL-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 10).toUpperCase();
+                    localStorage.setItem(LOCAL_UID_KEY, uid);
+                }
+                return uid;
+            } catch (e) {
+                return 'LOCAL-SESSION';
+            }
+        }
+
+        function openTemplateDb() {
+            return new Promise((resolve, reject) => {
+                if (!window.indexedDB) {
+                    reject(new Error('瀏覽器不支援 IndexedDB'));
+                    return;
+                }
+                const req = indexedDB.open(IDB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(IDB_STORE)) {
+                        db.createObjectStore(IDB_STORE);
+                    }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function saveTemplateToLocalDb(uid, classKey, tplObj) {
+            try {
+                const db = await openTemplateDb();
+                return await new Promise((resolve, reject) => {
+                    const tx = db.transaction(IDB_STORE, 'readwrite');
+                    const store = tx.objectStore(IDB_STORE);
+                    const key = `${uid}_${classKey}`;
+                    if (!tplObj) {
+                        store.delete(key);
+                    } else {
+                        store.put(tplObj, key);
+                    }
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (e) {
+                console.warn('本機保存範本失敗：', e);
+                return false;
+            }
+        }
+
+        async function loadTemplatesFromLocalDb(uid) {
+            const result = { A: null, B: null };
+            try {
+                const db = await openTemplateDb();
+                for (const classKey of ['A', 'B']) {
+                    const item = await new Promise((resolve) => {
+                        const tx = db.transaction(IDB_STORE, 'readonly');
+                        const req = tx.objectStore(IDB_STORE).get(`${uid}_${classKey}`);
+                        req.onsuccess = () => resolve(req.result || null);
+                        req.onerror = () => resolve(null);
+                    });
+                    if (item && item.buffer) {
+                        result[classKey] = item;
+                    }
+                }
+            } catch (e) {
+                console.warn('讀取本機範本失敗：', e);
+            }
+            return result;
+        }
+
+        function saveStateToLocal(uid) {
+            try {
+                localStorage.setItem(LOCAL_STATE_KEY_PREFIX + uid, JSON.stringify(appState));
+            } catch (e) {
+                console.warn('本機儲存出席狀態失敗：', e);
+            }
+        }
+
+        function loadStateFromLocal(uid) {
+            try {
+                const raw = localStorage.getItem(LOCAL_STATE_KEY_PREFIX + uid);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.classes && parsed.classes.A && parsed.classes.B) {
+                    if (!parsed.classes.A.absenceReasons) parsed.classes.A.absenceReasons = {};
+                    if (!parsed.classes.B.absenceReasons) parsed.classes.B.absenceReasons = {};
+                    return parsed;
+                }
+            } catch (e) {
+                console.warn('讀取本機出席狀態失敗：', e);
+            }
+            return null;
+        }
+
+        // =========================================================================
+        // 3. UID 同步與保存控制
+        // =========================================================================
+        function updateSyncStatus(status, text) {
+            const dot = document.getElementById('cloudSyncDot');
+            const label = document.getElementById('cloudSyncText');
+            if (!dot || !label) return;
+            label.textContent = text;
+            if (status === 'ready') {
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+            } else if (status === 'saving') {
+                dot.className = 'w-2 h-2 rounded-full bg-indigo-500 animate-pulse';
+            } else if (status === 'error') {
+                dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+            } else {
+                dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+            }
+        }
+
+        function copyUserUid() {
+            if (!activeUid) {
+                showToast('尚未取得 UID，請稍候', 'error');
+                return;
+            }
+            const ta = document.createElement('textarea');
+            ta.value = activeUid;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast('已複製您的專屬 UID', 'success');
+            } catch (e) {
+                showToast('複製失敗，請手動選取複製', 'error');
+            }
+            document.body.removeChild(ta);
+        }
+
+        function saveState() {
+            if (!activeUid) return;
+            saveStateToLocal(activeUid);
+            if (!isCloudMode || !window.cloudStore) return;
+
+            updateSyncStatus('saving', '正在同步出席紀錄...');
+            if (saveStateTimer) clearTimeout(saveStateTimer);
+            saveStateTimer = setTimeout(async () => {
+                try {
+                    await window.cloudStore.saveAppState(appState);
+                    updateSyncStatus('ready', '範本與紀錄已自動雲端保存');
+                } catch (e) {
+                    console.error('雲端保存出席狀態失敗：', e);
+                    updateSyncStatus('ready', '已保存於本機（雲端同步略過）');
+                }
+            }, 600);
+        }
+
+        async function persistTemplate(classKey, tplObj) {
+            // 先保存於本機 IndexedDB，確保立即可靠
+            await saveTemplateToLocalDb(activeUid, classKey, tplObj);
+
+            if (isCloudMode && window.cloudStore) {
+                updateSyncStatus('saving', '正在保存範本至雲端...');
+                try {
+                    await window.cloudStore.saveTemplate(classKey, tplObj);
+                    updateSyncStatus('ready', '範本與紀錄已自動雲端保存');
+                } catch (e) {
+                    console.warn('雲端保存範本警告：', e);
+                    updateSyncStatus('ready', '範本已保存於本機 UID');
+                }
+            } else {
+                updateSyncStatus('ready', '範本與紀錄已保存於本機 UID');
+            }
+        }
+
+        async function bootstrapStorage() {
+            const uidDisplay = document.getElementById('userUidDisplay');
+            try {
+                if (window.cloudStore) {
+                    const cloudUid = await window.cloudStore.init();
+                    activeUid = cloudUid;
+                    isCloudMode = true;
+                    if (uidDisplay) uidDisplay.textContent = activeUid;
+                    updateSyncStatus('saving', '正在載入已保存的範本與紀錄...');
+
+                    // 載入雲端出席狀態（若無則嘗試本機）
+                    const cloudState = await window.cloudStore.loadAppState();
+                    if (cloudState) {
+                        appState = cloudState;
+                    } else {
+                        const localState = loadStateFromLocal(activeUid);
+                        if (localState) appState = localState;
+                    }
+
+                    // 先載入本機快取範本，再訂閱雲端即時同步
+                    const localTemplates = await loadTemplatesFromLocalDb(activeUid);
+                    wordTemplates = { ...wordTemplates, ...localTemplates };
+                    refreshAllUI();
+
+                    window.cloudStore.subscribeTemplates(
+                        (cloudTpls) => {
+                            if (cloudTpls.A) wordTemplates.A = cloudTpls.A;
+                            if (cloudTpls.B) wordTemplates.B = cloudTpls.B;
+                            updateTemplateUI();
+                            autoSyncMissingIdsFromTemplates();
+                            updateSyncStatus('ready', '範本與紀錄已自動雲端保存');
+                        },
+                        () => {
+                            updateSyncStatus('ready', '已啟用本機 UID 保存');
+                        }
+                    );
+                    return;
+                }
+            } catch (e) {
+                console.info('切換至本機 UID 保存模式：', e.message);
+            }
+
+            // 本機 UID 模式（無 Firebase 設定時自動啟用）
+            isCloudMode = false;
+            activeUid = getOrCreateLocalUid();
+            if (uidDisplay) uidDisplay.textContent = activeUid;
+
+            const localState = loadStateFromLocal(activeUid);
+            if (localState) appState = localState;
+
+            const localTemplates = await loadTemplatesFromLocalDb(activeUid);
+            wordTemplates = { ...wordTemplates, ...localTemplates };
+
+            await autoSyncMissingIdsFromTemplates();
+            refreshAllUI();
+            updateSyncStatus('ready', '已啟用本機 UID 自動保存');
+        }
+
+        // =========================================================================
+        // 4. 介面切換、表頭控制與通知系統
+        // =========================================================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            const styles = {
+                success: 'bg-emerald-600 text-white border-emerald-700',
+                error: 'bg-rose-600 text-white border-rose-700',
+                info: 'bg-slate-800 text-white border-slate-900'
+            };
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-300 translate-y-2 opacity-0 ${styles[type] || styles.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        let confirmCallback = null;
+        function openConfirmModal(title, message, onOk) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            confirmCallback = onOk;
+            const modal = document.getElementById('confirmModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirmModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            confirmCallback = null;
+        }
+
+        function openImageModal(src) {
+            const modal = document.getElementById('imageModal');
+            document.getElementById('modalImg').src = src;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function toggleHeaderSection() {
+            const body = document.getElementById('headerFormBody');
+            const chevron = document.getElementById('headerChevron');
+            if (!body || !chevron) return;
+            const isHidden = body.classList.toggle('hidden');
+            chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+
+        function switchClass(classKey) {
+            appState.currentClass = classKey;
+            saveState();
+            refreshAllUI();
+        }
+
+        function saveMetaField(field, value) {
+            getCurrentData().meta[field] = value;
+            saveState();
+        }
+
+        function populateMetaForm() {
+            const meta = getCurrentData().meta;
+            const fields = [
+                'year', 'schoolCode', 'schoolName', 'theme', 'location',
+                'projectCode', 'projectName', 'tutorName', 'tutorType',
+                'assistantName', 'assistantType', 'period',
+                'minutesPerSession', 'totalSessions', 'remarks'
+            ];
+            fields.forEach(f => {
+                const el = document.getElementById('meta_' + f);
+                if (el) el.value = meta[f] || '';
+            });
+        }
+
+        function updateClassButtonsUI() {
+            const btnA = document.getElementById('btnClassA');
+            const btnB = document.getElementById('btnClassB');
+            const badge = document.getElementById('currentClassBadge');
+            const isA = appState.currentClass === 'A';
+            const countA = appState.classes.A.students.filter(s => (s.name || '').trim() !== '').length;
+            const countB = appState.classes.B.students.filter(s => (s.name || '').trim() !== '').length;
+
+            if (btnA && btnB) {
+                btnA.textContent = `出席表 A 班 (${countA}人)`;
+                btnB.textContent = `出席表 B 班 (${countB}人)`;
+                btnA.className = isA
+                    ? 'flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-700 shadow-sm'
+                    : 'flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-slate-900';
+                btnB.className = !isA
+                    ? 'flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-white text-indigo-700 shadow-sm'
+                    : 'flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-600 hover:text-slate-900';
+            }
+            if (badge) {
+                badge.textContent = isA ? '出席表 A 班' : '出席表 B 班';
+            }
+        }
+
+        function updateTemplateUI() {
+            const tpl = wordTemplates[appState.currentClass];
+            const statusBadge = document.getElementById('templateStatusBadge');
+            const iconBox = document.getElementById('templateIconBox');
+            const fileNameEl = document.getElementById('templateFileName');
+            const detailEl = document.getElementById('templateFileDetail');
+            const btnSync = document.getElementById('btnSyncTemplateRoster');
+            const btnRemove = document.getElementById('btnRemoveTemplate');
+            const exportBtnText = document.getElementById('exportWordBtnText');
+
+            if (tpl) {
+                statusBadge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
+                statusBadge.textContent = '已載入原檔範本（保留原格式）';
+                iconBox.className = 'w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0';
+                fileNameEl.textContent = tpl.name;
+                detailEl.textContent = tpl.info || '下載時將直接更新原檔表格內容，並保留所有格式。';
+                if (btnSync) btnSync.classList.remove('hidden');
+                btnRemove.classList.remove('hidden');
+                if (exportBtnText) exportBtnText.textContent = '下載更新後 Word 出席表 (.docx)';
+            } else {
+                statusBadge.className = 'text-xs font-semibold px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200';
+                statusBadge.textContent = '尚未上傳原檔範本';
+                iconBox.className = 'w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0';
+                fileNameEl.textContent = `請上傳 ${appState.currentClass} 班的原始 Word 檔（例如 FE-RN02...出席表${appState.currentClass}.docx）`;
+                detailEl.textContent = 'A 班與 B 班各上傳一次即可自動綁定您的 UID 並保存，下次開啟免重複上傳。';
+                if (btnSync) btnSync.classList.add('hidden');
+                btnRemove.classList.add('hidden');
+                if (exportBtnText) exportBtnText.textContent = '下載 Word 出席表 (.docx)';
+            }
+        }
+
+        function refreshAllUI() {
+            updateClassButtonsUI();
+            updateTemplateUI();
+            populateMetaForm();
+            renderAttendanceTable();
+        }
+
+        // =========================================================================
+        // 5. 日期解析：依本年度自動填入星期幾、星期六與星期一時段
+        // =========================================================================
+        function parseMonthDay(rawDate) {
+            const raw = (rawDate || '').trim();
+            if (!raw) return null;
+
+            const currentYear = new Date().getFullYear();
+            let year = currentYear;
+            let month = null;
+            let day = null;
+
+            // 格式 1: 2026年11月7日 或 11月7日
+            const cnMatch = raw.match(/(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
+            if (cnMatch) {
+                if (cnMatch[1]) year = parseInt(cnMatch[1], 10);
+                month = parseInt(cnMatch[2], 10);
+                day = parseInt(cnMatch[3], 10);
+            }
+
+            // 格式 2: YYYY/MM/DD 或 YYYY-MM-DD 或 YYYY.MM.DD
+            if (month === null) {
+                const ymdMatch = raw.match(/^(\d{4})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{1,2})$/);
+                if (ymdMatch) {
+                    year = parseInt(ymdMatch[1], 10);
+                    month = parseInt(ymdMatch[2], 10);
+                    day = parseInt(ymdMatch[3], 10);
+                }
+            }
+
+            // 格式 3: MM/DD 或 MM-DD 或 MM.DD
+            if (month === null) {
+                const mdMatch = raw.match(/^(\d{1,2})\s*[\/.\-]\s*(\d{1,2})$/);
+                if (mdMatch) {
+                    const a = parseInt(mdMatch[1], 10);
+                    const b = parseInt(mdMatch[2], 10);
+                    if (a > 12 && b >= 1 && b <= 12) {
+                        day = a;
+                        month = b;
+                    } else {
+                        month = a;
+                        day = b;
+                    }
+                }
+            }
+
+            if (month === null || day === null || month < 1 || month > 12 || day < 1 || day > 31) {
+                return null;
+            }
+
+            const dateObj = new Date(year, month - 1, day);
+            if (dateObj.getFullYear() !== year || dateObj.getMonth() !== month - 1 || dateObj.getDate() !== day) {
+                return null;
+            }
+            return { year, month, day, dateObj };
+        }
+
+        function applyAutoScheduleForDate(sIdx, rawDate) {
+            const parsed = parseMonthDay(rawDate);
+            if (!parsed) return false;
+
+            const data = getCurrentData();
+            const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            const dow = parsed.dateObj.getDay(); // 0=日, 1=一, ..., 6=六
+            const weekdayChar = weekdayNames[dow];
+
+            // 自動填入星期幾
+            data.sessions[sIdx].weekday = weekdayChar;
+
+            // 計算同一個日期在先前欄位已出現幾次，決定是第 1 節或第 2 節
+            const targetKey = `${parsed.year}-${parsed.month}-${parsed.day}`;
+            let sameDatePrevCount = 0;
+            for (let i = 0; i < sIdx; i++) {
+                const prevParsed = parseMonthDay(data.sessions[i].date);
+                if (prevParsed && `${prevParsed.year}-${prevParsed.month}-${prevParsed.day}` === targetKey) {
+                    sameDatePrevCount++;
+                }
+            }
+
+            // 星期六：第 1 節 10:00-11:00；第 2 節 11:00-12:00
+            if (dow === 6) {
+                if (sameDatePrevCount === 0) {
+                    data.sessions[sIdx].startTime = '10:00';
+                    data.sessions[sIdx].endTime = '11:00';
+                } else {
+                    data.sessions[sIdx].startTime = '11:00';
+                    data.sessions[sIdx].endTime = '12:00';
+                }
+            }
+            // 星期一：第 1 節 16:30-17:30；第 2 節 17:30-18:30
+            else if (dow === 1) {
+                if (sameDatePrevCount === 0) {
+                    data.sessions[sIdx].startTime = '16:30';
+                    data.sessions[sIdx].endTime = '17:30';
+                } else {
+                    data.sessions[sIdx].startTime = '17:30';
+                    data.sessions[sIdx].endTime = '18:30';
+                }
+            }
+
+            // 直接同步更新該欄 DOM 輸入框，不中斷游標焦點
+            const wkInput = document.getElementById(`sess_weekday_${sIdx}`);
+            const stInput = document.getElementById(`sess_startTime_${sIdx}`);
+            const etInput = document.getElementById(`sess_endTime_${sIdx}`);
+            if (wkInput) wkInput.value = data.sessions[sIdx].weekday;
+            if (stInput) stInput.value = data.sessions[sIdx].startTime;
+            if (etInput) etInput.value = data.sessions[sIdx].endTime;
+
+            return true;
+        }
+
+        // =========================================================================
+        // 6. 出席表渲染、編輯、檔名偵測與缺席原因摘要
+        // =========================================================================
+        function renderAttendanceTable() {
+            const table = document.getElementById('attendanceTable');
+            if (!table) return;
+            const data = getCurrentData();
+
+            const sessionNumHeaders = data.sessions.map((s, idx) => `
+                <th class="border border-slate-300 bg-indigo-50/70 px-1 py-1.5 text-center font-bold text-indigo-800 w-20">
+                    <div>第 ${s.index} 節</div>
+                    <button onclick="markColumnAllPresent(${idx})" title="此節全部標記出席" class="mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 transition-colors">
+                        全出席
+                    </button>
+                </th>
+            `).join('');
+
+            const buildSessionInputRow = (label, field, placeholder) => `
+                <tr>
+                    <td class="border border-slate-300 bg-slate-50 px-2 py-1 font-semibold text-slate-600 text-center whitespace-nowrap">${label}</td>
+                    ${data.sessions.map((s, sIdx) => `
+                        <td class="border border-slate-300 p-0.5 bg-white">
+                            <input
+                                id="sess_${field}_${sIdx}"
+                                type="text"
+                                value="${escapeHtml(s[field])}"
+                                placeholder="${placeholder}"
+                                oninput="updateSessionField(${sIdx}, '${field}', this.value)"
+                                class="w-full px-1 py-1 text-center text-xs bg-transparent focus:bg-indigo-50/60 focus:outline-none rounded"
+                            />
+                        </td>
+                    `).join('')}
+                </tr>
+            `;
+
+            const studentRowsHtml = data.students.map((st, stIdx) => {
+                const cellsHtml = st.attendance.map((mark, sIdx) => {
+                    let styleClass = 'text-slate-300 hover:bg-slate-100';
+                    let display = '·';
+                    if (mark === '✓') {
+                        styleClass = 'bg-emerald-50 text-emerald-700 font-bold text-base hover:bg-emerald-100';
+                        display = '✓';
+                    } else if (mark === 'X') {
+                        styleClass = 'bg-rose-50 text-rose-600 font-bold text-sm hover:bg-rose-100';
+                        display = 'X';
+                    } else if (mark === '○') {
+                        styleClass = 'bg-amber-50 text-amber-600 font-bold text-base hover:bg-amber-100';
+                        display = '○';
+                    }
+                    return `
+                        <td onclick="toggleAttendance(${stIdx}, ${sIdx})" class="att-cell border border-slate-300 text-center cursor-pointer h-9 ${styleClass}">
+                            ${display}
+                        </td>
+                    `;
+                }).join('');
+
+                return `
+                    <tr class="hover:bg-slate-50/60">
+                        <td class="border border-slate-300 text-center text-slate-500 font-medium bg-slate-50/50 w-10">${stIdx + 1}</td>
+                        <td class="border border-slate-300 p-0.5 w-24">
+                            <input type="text" value="${escapeHtml(st.id)}" placeholder="選填"
+                                oninput="updateStudentField(${stIdx}, 'id', this.value)"
+                                class="w-full px-1.5 py-1 text-xs text-center bg-transparent focus:bg-indigo-50/50 focus:outline-none rounded" />
+                        </td>
+                        <td class="border border-slate-300 p-0.5 w-24">
+                            <input type="text" value="${escapeHtml(st.name)}" placeholder="學生姓名"
+                                oninput="updateStudentField(${stIdx}, 'name', this.value)"
+                                class="w-full px-1.5 py-1 text-xs font-semibold text-slate-800 text-center bg-transparent focus:bg-indigo-50/50 focus:outline-none rounded" />
+                        </td>
+                        <td class="border border-slate-300 p-0.5 w-16">
+                            <input type="text" value="${escapeHtml(st.grade)}" placeholder="年級"
+                                oninput="updateStudentField(${stIdx}, 'grade', this.value)"
+                                class="w-full px-1 py-1 text-xs text-center text-slate-600 bg-transparent focus:bg-indigo-50/50 focus:outline-none rounded" />
+                        </td>
+                        ${stIdx === 0
+                            ? `<td rowspan="${data.students.length}" class="border border-slate-300 bg-slate-50/80 px-1.5 py-2 text-center text-[11px] text-slate-500 leading-relaxed align-middle w-24">
+                                <div><span class="text-emerald-600 font-bold">✓</span> : 出席</div>
+                                <div><span class="text-rose-600 font-bold">X</span> : 缺席</div>
+                                <div><span class="text-amber-600 font-bold">○</span> : 病假</div>
+                               </td>`
+                            : ''
+                        }
+                        ${cellsHtml}
+                    </tr>
+                `;
+            }).join('');
+
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th rowspan="5" class="border border-slate-300 bg-slate-100 px-1.5 py-2 text-center font-bold text-slate-700 w-10">序號</th>
+                        <th rowspan="5" class="border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-700 w-24">學生證編號</th>
+                        <th rowspan="5" class="border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-700 w-24">學生姓名</th>
+                        <th rowspan="5" class="border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-700 w-16">就讀年級</th>
+                        <th class="border border-slate-300 bg-indigo-50/70 px-2 py-2 text-center font-bold text-indigo-800 w-24">節</th>
+                        ${sessionNumHeaders}
+                    </tr>
+                    ${buildSessionInputRow('日期', 'date', '如 11/7')}
+                    ${buildSessionInputRow('星期', 'weekday', '自動')}
+                    ${buildSessionInputRow('開展時間', 'startTime', '10:00')}
+                    ${buildSessionInputRow('結束時間', 'endTime', '11:00')}
+                </thead>
+                <tbody>
+                    ${studentRowsHtml}
+                </tbody>
+            `;
+
+            updateDownloadFilenamePreview();
+            renderAbsenceSummary();
+        }
+
+        function updateSessionField(sIdx, field, value) {
+            const data = getCurrentData();
+            data.sessions[sIdx][field] = value;
+
+            if (field === 'date') {
+                applyAutoScheduleForDate(sIdx, value);
+                updateDownloadFilenamePreview();
+                renderAbsenceSummary();
+            }
+            saveState();
+        }
+
+        function updateStudentField(stIdx, field, value) {
+            const data = getCurrentData();
+            data.students[stIdx][field] = value;
+            saveState();
+            if (field === 'name') {
+                updateClassButtonsUI();
+            }
+            if (field === 'name' || field === 'grade') {
+                renderAbsenceSummary();
+            }
+        }
+
+        function toggleAttendance(stIdx, sIdx) {
+            const data = getCurrentData();
+            const order = ['', '✓', 'X', '○'];
+            const current = data.students[stIdx].attendance[sIdx] || '';
+            const next = order[(order.indexOf(current) + 1) % order.length];
+            data.students[stIdx].attendance[sIdx] = next;
+
+            // 若改回出席或空白，清除該筆缺席原因
+            if (next !== 'X' && next !== '○' && data.absenceReasons) {
+                delete data.absenceReasons[`${stIdx}_${sIdx}`];
+            }
+            saveState();
+            renderAttendanceTable();
+        }
+
+        function markColumnAllPresent(sIdx) {
+            const data = getCurrentData();
+            data.students.forEach((st, stIdx) => {
+                if (st.name && st.name.trim() !== '') {
+                    st.attendance[sIdx] = '✓';
+                    if (data.absenceReasons) {
+                        delete data.absenceReasons[`${stIdx}_${sIdx}`];
+                    }
+                }
+            });
+            saveState();
+            renderAttendanceTable();
+            showToast(`已將第 ${sIdx + 1} 節有姓名的學生全部標記為出席 (✓)`, 'success');
+        }
+
+        function askResetAttendance() {
+            const classKey = appState.currentClass;
+            openConfirmModal(
+                '清空出席紀錄',
+                `確定要清空「${classKey} 班」的所有日期、時間、出席符號與缺席原因嗎？（學生名單與原檔範本將會保留）`,
+                () => {
+                    const data = getCurrentData();
+                    data.sessions.forEach(s => {
+                        s.date = '';
+                        s.weekday = '';
+                        s.startTime = '';
+                        s.endTime = '';
+                    });
+                    data.students.forEach(st => {
+                        st.attendance = Array(SESSION_COUNT).fill('');
+                    });
+                    data.absenceReasons = {};
+                    saveState();
+                    renderAttendanceTable();
+                    showToast(`已清空 ${classKey} 班的出席紀錄`, 'info');
+                }
+            );
+        }
+
+        // 依點名紙中的日期自動偵測月份（若尚未填寫日期則預設為當月）
+        function detectAttendanceMonth(sessions) {
+            const monthCounts = {};
+            let firstDetected = null;
+
+            (sessions || []).forEach(s => {
+                const raw = (s.date || '').trim();
+                if (!raw) return;
+
+                let detected = null;
+                const cnMatch = raw.match(/(\d{1,2})\s*月/);
+                if (cnMatch) {
+                    const m = parseInt(cnMatch[1], 10);
+                    if (m >= 1 && m <= 12) detected = m;
+                }
+                if (detected === null) {
+                    const ymdMatch = raw.match(/\d{4}\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*\d{1,2}/);
+                    if (ymdMatch) {
+                        const m = parseInt(ymdMatch[1], 10);
+                        if (m >= 1 && m <= 12) detected = m;
+                    }
+                }
+                if (detected === null) {
+                    const mdMatch = raw.match(/^(\d{1,2})\s*[\/.\-]\s*(\d{1,2})$/);
+                    if (mdMatch) {
+                        const first = parseInt(mdMatch[1], 10);
+                        const second = parseInt(mdMatch[2], 10);
+                        if (first > 12 && second >= 1 && second <= 12) {
+                            detected = second;
+                        } else if (first >= 1 && first <= 12) {
+                            detected = first;
+                        }
+                    }
+                }
+
+                if (detected !== null) {
+                    if (firstDetected === null) firstDetected = detected;
+                    monthCounts[detected] = (monthCounts[detected] || 0) + 1;
+                }
+            });
+
+            if (firstDetected === null) {
+                return new Date().getMonth() + 1;
+            }
+
+            let bestMonth = firstDetected;
+            let maxCount = 0;
+            Object.entries(monthCounts).forEach(([mStr, count]) => {
+                if (count > maxCount) {
+                    maxCount = count;
+                    bestMonth = parseInt(mStr, 10);
+                }
+            });
+            return bestMonth;
+        }
+
+        function getDownloadFileName(classKey, data, ext = 'docx') {
+            const month = detectAttendanceMonth(data.sessions);
+            return `初中資訊科技校隊${classKey}班${month}月點名紙.${ext}`;
+        }
+
+        function updateDownloadFilenamePreview() {
+            const previewEl = document.getElementById('downloadFileNamePreview');
+            if (!previewEl) return;
+            previewEl.textContent = getDownloadFileName(appState.currentClass, getCurrentData(), 'docx');
+        }
+
+        function updateAbsenceReason(stIdx, sIdx, value) {
+            const data = getCurrentData();
+            if (!data.absenceReasons) data.absenceReasons = {};
+            const key = `${stIdx}_${sIdx}`;
+            if (value && value.trim() !== '') {
+                data.absenceReasons[key] = value;
+            } else {
+                delete data.absenceReasons[key];
+            }
+            saveState();
+        }
+
+        function renderAbsenceSummary() {
+            const listEl = document.getElementById('absenceSummaryList');
+            const countBadge = document.getElementById('absenceCountBadge');
+            if (!listEl || !countBadge) return;
+
+            const data = getCurrentData();
+            if (!data.absenceReasons) data.absenceReasons = {};
+
+            const items = [];
+            for (let sIdx = 0; sIdx < SESSION_COUNT; sIdx++) {
+                const session = data.sessions[sIdx];
+                data.students.forEach((st, stIdx) => {
+                    const mark = st.attendance[sIdx];
+                    if (mark === 'X' || mark === '○') {
+                        items.push({
+                            stIdx,
+                            sIdx,
+                            studentName: st.name ? st.name.trim() : `學生 #${stIdx + 1}`,
+                            grade: st.grade ? st.grade.trim() : '',
+                            sessionNum: session.index,
+                            date: session.date ? session.date.trim() : '',
+                            mark,
+                            reason: data.absenceReasons[`${stIdx}_${sIdx}`] || ''
+                        });
+                    }
+                });
+            }
+
+            countBadge.textContent = `共 ${items.length} 筆紀錄`;
+
+            if (items.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-6 text-sm text-slate-400 bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
+                        目前本班尚無缺席 (<span class="text-rose-500 font-semibold">X</span>) 或病假 (<span class="text-amber-500 font-semibold">○</span>) 紀錄。當上方出席表標記為 X 或 ○ 時，將自動顯示於此供填寫原因。
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = `
+                <div class="space-y-2.5">
+                    ${items.map(item => {
+                        const isAbsent = item.mark === 'X';
+                        const badgeClass = isAbsent
+                            ? 'bg-rose-100 text-rose-700 border-rose-200'
+                            : 'bg-amber-100 text-amber-700 border-amber-200';
+                        const statusLabel = isAbsent ? 'X 缺席' : '○ 病假';
+                        const dateLabel = item.date ? `（${escapeHtml(item.date)}）` : '';
+
+                        return `
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2.5 p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:border-amber-300 transition-colors">
+                                <div class="flex flex-wrap items-center gap-2 sm:w-72 shrink-0">
+                                    <span class="px-2 py-0.5 rounded-md text-xs font-bold border ${badgeClass}">${statusLabel}</span>
+                                    <span class="text-xs font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">第 ${item.sessionNum} 節${dateLabel}</span>
+                                    <span class="text-sm font-bold text-slate-800">${escapeHtml(item.studentName)}</span>
+                                    ${item.grade ? `<span class="text-xs text-slate-500">${escapeHtml(item.grade)}</span>` : ''}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <input type="text"
+                                        value="${escapeHtml(item.reason)}"
+                                        oninput="updateAbsenceReason(${item.stIdx}, ${item.sIdx}, this.value)"
+                                        placeholder="請輸入缺席／病假原因（選填，例：事假、發燒、校外比賽...）"
+                                        class="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none">
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // =========================================================================
+        // 7. 點名紙圖片上傳、拖曳預覽與 AI 智能辨識
+        // =========================================================================
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('dropZone');
+            if (!dropZone) return;
+
+            ['dragenter', 'dragover'].forEach(evtName => {
+                dropZone.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.add('border-indigo-500', 'bg-indigo-100/60');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(evtName => {
+                dropZone.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.remove('border-indigo-500', 'bg-indigo-100/60');
+                });
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer?.files;
+                if (files && files.length > 0) {
+                    processImageFiles(files);
+                }
+            });
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target?.files;
+            if (files && files.length > 0) {
+                processImageFiles(files);
+            }
+            event.target.value = '';
+        }
+
+        function processImageFiles(fileList) {
+            const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) {
+                showToast('請選擇圖片檔案（JPG、PNG、WEBP）', 'error');
+                return;
+            }
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    const base64 = dataUrl.split(',')[1];
+                    uploadedImages.push({
+                        id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                        name: file.name,
+                        mimeType: file.type || 'image/jpeg',
+                        base64,
+                        dataUrl
+                    });
+                    renderImagePreviews();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function removeUploadedImage(id) {
+            uploadedImages = uploadedImages.filter(img => img.id !== id);
+            renderImagePreviews();
+        }
+
+        function clearUploadedImages() {
+            uploadedImages = [];
+            renderImagePreviews();
+        }
+
+        function renderImagePreviews() {
+            const container = document.getElementById('previewContainer');
+            const btnAnalyze = document.getElementById('btnAnalyze');
+            if (!container || !btnAnalyze) return;
+
+            if (uploadedImages.length === 0) {
+                container.innerHTML = `<p id="emptyPreviewText" class="text-sm text-slate-400">尚未上傳點名紙圖檔。上傳後點擊下方按鈕，AI 將自動讀取日期、時間與學生出席紀錄。</p>`;
+                btnAnalyze.disabled = true;
+                return;
+            }
+
+            btnAnalyze.disabled = false;
+            container.innerHTML = uploadedImages.map(img => `
+                <div class="relative group w-24 h-24 rounded-xl overflow-hidden border border-slate-200 bg-white shadow-xs">
+                    <img src="${img.dataUrl}" alt="${escapeHtml(img.name)}" onclick="openImageModal('${img.dataUrl}')" class="w-full h-full object-cover cursor-zoom-in" />
+                    <button onclick="removeUploadedImage('${img.id}')" title="移除圖片" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-900/70 hover:bg-rose-600 text-white text-xs flex items-center justify-center opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                        ×
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function analyzeImagesWithAI() {
+            if (uploadedImages.length === 0) {
+                showToast('請先上傳至少一張點名紙圖片', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btnAnalyze');
+            const icon = document.getElementById('analyzeIcon');
+            const spinner = document.getElementById('analyzeSpinner');
+            const btnText = document.getElementById('analyzeBtnText');
+
+            btn.disabled = true;
+            icon.classList.add('hidden');
+            spinner.classList.remove('hidden');
+            btnText.textContent = 'AI 正在辨識點名紙...';
+
+            try {
+                const data = getCurrentData();
+                const rosterText = data.students
+                    .map((s, idx) => (s.name || s.id) ? `${idx + 1}. 學生證編號:${s.id || '無'} | 姓名:${s.name || '無'} | 年級:${s.grade || '無'}` : '')
+                    .filter(Boolean)
+                    .join('\n');
+
+                const prompt = `你是一位協助學校處理「FE-RN02 出席表」的助手。請仔細檢視上傳的點名紙圖片，完整讀取圖上的學生證編號、學生姓名、就讀年級，以及各課節的日期、星期、開展時間、結束時間與出席狀態。
+
+目前系統內名單（供參考對照，若圖片上有明確的學生證編號與姓名請務必照圖片內容回傳）：
+${rosterText}
+
+請嚴格以 JSON 格式回傳（不要包含任何多餘文字或 Markdown 標記），結構如下：
+{
+  "students": [
+    { "studentId": "學生證編號(若無則空字串)", "name": "學生姓名", "grade": "就讀年級(若無則空字串)" }
+  ],
+  "sessions": [
+    {
+      "date": "例如 11/7 或 11月7日",
+      "weekday": "例如 六",
+      "startTime": "例如 10:00",
+      "endTime": "例如 11:00",
+      "records": [
+        { "studentId": "學生證編號(若無則空字串)", "name": "學生姓名", "status": "✓ 或 X 或 ○ 或空字串" }
+      ]
+    }
+  ]
+}
+規則：
+1. status 僅限使用 "✓"（出席 / 打勾）、"X"（缺席 / 打叉 / 曠課）、"○"（病假 / 圓圈）或 ""（未填）。
+2. 若同一天連續兩節，請拆分成兩個 session 物件。
+3. 請精準辨識圖片中的「學生證編號」與「學生姓名」，確保與上載點名紙資料完全一致。`;
+
+                const parts = [{ text: prompt }];
+                uploadedImages.forEach(img => {
+                    parts.push({
+                        inlineData: {
+                            mimeType: img.mimeType,
+                            data: img.base64
+                        }
+                    });
+                });
+
+                const apiKey = "";
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+                let responseJson = null;
+                let lastErr = null;
+                const delays = [1000, 2000, 4000];
+
+                for (let attempt = 0; attempt <= delays.length; attempt++) {
+                    try {
+                        const resp = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ parts }],
+                                generationConfig: { responseMimeType: "application/json" }
+                            })
+                        });
+                        if (!resp.ok) {
+                            throw new Error(`HTTP ${resp.status}`);
+                        }
+                        responseJson = await resp.json();
+                        break;
+                    } catch (err) {
+                        lastErr = err;
+                        if (attempt < delays.length) {
+                            await new Promise(r => setTimeout(r, delays[attempt]));
+                        }
+                    }
+                }
+
+                if (!responseJson) {
+                    throw lastErr || new Error('無法連線至 AI 辨識服務');
+                }
+
+                const rawText = responseJson.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const cleanJson = rawText.replace(/```json|```/gi, '').trim();
+                const parsed = JSON.parse(cleanJson);
+                applyRecognitionResult(parsed);
+                showToast('AI 辨識完成！已自動填入日期、時段與學生出席紀錄，請核對。', 'success');
+            } catch (err) {
+                console.error('AI 辨識失敗：', err);
+                showToast('AI 辨識未能完成（請確認網路連線或改為直接點擊表格手動填寫）', 'error');
+            } finally {
+                btn.disabled = uploadedImages.length === 0;
+                icon.classList.remove('hidden');
+                spinner.classList.add('hidden');
+                btnText.textContent = 'AI 智能辨識點名紙';
+            }
+        }
+
+        function applyRecognitionResult(parsed) {
+            if (!parsed) return;
+            const data = getCurrentData();
+            const hasTemplate = !!wordTemplates[appState.currentClass];
+
+            // 1. 先同步圖片中辨識到的學生證編號、姓名與年級，確保與上載資料一致
+            if (Array.isArray(parsed.students) && parsed.students.length > 0) {
+                parsed.students.forEach((imgSt, idx) => {
+                    const imgId = String(imgSt.studentId || '').trim();
+                    const imgName = String(imgSt.name || '').trim();
+                    const imgGrade = String(imgSt.grade || '').trim();
+                    if (!imgId && !imgName) return;
+
+                    const normImgName = imgName.replace(/\s+/g, '');
+                    // 先依學生證編號或姓名尋找對應列
+                    let stIdx = data.students.findIndex(st => {
+                        const sId = (st.id || '').trim();
+                        const sName = (st.name || '').replace(/\s+/g, '');
+                        if (imgId && sId && imgId === sId) return true;
+                        if (normImgName && sName && (sName === normImgName || sName.includes(normImgName) || normImgName.includes(sName))) return true;
+                        return false;
+                    });
+
+                    // 若尚未上傳 Word 範本且名單中找不到此學生，則依序填入或補入空白列
+                    if (stIdx === -1 && !hasTemplate) {
+                        const emptyIdx = data.students.findIndex(st => !(st.name || '').trim() && !(st.id || '').trim());
+                        if (emptyIdx !== -1) {
+                            stIdx = emptyIdx;
+                        } else {
+                            data.students.push({
+                                id: '',
+                                name: '',
+                                grade: '',
+                                attendance: Array(SESSION_COUNT).fill('')
+                            });
+                            stIdx = data.students.length - 1;
+                        }
+                    }
+
+                    if (stIdx !== -1) {
+                        if (imgId) data.students[stIdx].id = imgId;
+                        if (imgName && (!hasTemplate || !data.students[stIdx].name)) {
+                            data.students[stIdx].name = imgName;
+                        }
+                        if (imgGrade && (!data.students[stIdx].grade || !hasTemplate)) {
+                            data.students[stIdx].grade = imgGrade;
+                        }
+                    }
+                });
+            }
+
+            // 2. 填入各課節日期、時段與出席紀錄
+            if (!Array.isArray(parsed.sessions)) {
+                saveState();
+                updateClassButtonsUI();
+                renderAttendanceTable();
+                return;
+            }
+
+            parsed.sessions.slice(0, SESSION_COUNT).forEach((sess, sIdx) => {
+                if (sess.date) {
+                    data.sessions[sIdx].date = String(sess.date).trim();
+                    applyAutoScheduleForDate(sIdx, data.sessions[sIdx].date);
+                }
+                if (sess.weekday && !data.sessions[sIdx].weekday) {
+                    data.sessions[sIdx].weekday = String(sess.weekday).trim();
+                }
+                if (sess.startTime && !data.sessions[sIdx].startTime) {
+                    data.sessions[sIdx].startTime = String(sess.startTime).trim();
+                }
+                if (sess.endTime && !data.sessions[sIdx].endTime) {
+                    data.sessions[sIdx].endTime = String(sess.endTime).trim();
+                }
+
+                if (Array.isArray(sess.records)) {
+                    sess.records.forEach(rec => {
+                        const targetId = String(rec.studentId || '').trim();
+                        const targetName = String(rec.name || '').replace(/\s+/g, '');
+                        if (!targetId && !targetName) return;
+
+                        const stIdx = data.students.findIndex(st => {
+                            const sId = (st.id || '').trim();
+                            const n = (st.name || '').replace(/\s+/g, '');
+                            if (targetId && sId && targetId === sId) return true;
+                            return n && targetName && (n === targetName || n.includes(targetName) || targetName.includes(n));
+                        });
+                        if (stIdx !== -1) {
+                            if (targetId && !data.students[stIdx].id) {
+                                data.students[stIdx].id = targetId;
+                            }
+                            const rawStatus = String(rec.status || '').trim().toUpperCase();
+                            let normalized = '';
+                            if (rawStatus === '✓' || rawStatus === 'V' || rawStatus === '√' || rawStatus === 'P' || rawStatus === '出席') {
+                                normalized = '✓';
+                            } else if (rawStatus === 'X' || rawStatus === '✗' || rawStatus === '✘' || rawStatus === '缺席') {
+                                normalized = 'X';
+                            } else if (rawStatus === '○' || rawStatus === 'O' || rawStatus === '0' || rawStatus === '病假') {
+                                normalized = '○';
+                            }
+                            data.students[stIdx].attendance[sIdx] = normalized;
+                        }
+                    });
+                }
+            });
+
+            saveState();
+            updateClassButtonsUI();
+            renderAttendanceTable();
+        }
+
+        // =========================================================================
+        // 8. 原始 Word (.docx) 範本解析、格式保留與自動縮字寫入引擎
+        // =========================================================================
+        const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+        function getCellText(tc) {
+            const tNodes = tc.getElementsByTagNameNS(W_NS, 't');
+            let text = '';
+            for (let i = 0; i < tNodes.length; i++) {
+                text += tNodes[i].textContent || '';
+            }
+            return text.trim();
+        }
+
+        function getDirectChildrenByTag(parent, localName) {
+            const list = [];
+            for (let i = 0; i < parent.childNodes.length; i++) {
+                const n = parent.childNodes[i];
+                if (n.nodeType === 1 && n.localName === localName) {
+                    list.push(n);
+                }
+            }
+            return list;
+        }
+
+        function getCellGridSpan(tc) {
+            const tcPr = getDirectChildrenByTag(tc, 'tcPr')[0];
+            if (!tcPr) return 1;
+            const gs = getDirectChildrenByTag(tcPr, 'gridSpan')[0];
+            if (!gs) return 1;
+            const val = parseInt(gs.getAttribute('w:val') || gs.getAttribute('val') || '1', 10);
+            return isNaN(val) ? 1 : val;
+        }
+
+        // 將表格每一列展開為虛擬欄位索引對應實際 <w:tc> 元素（正確處理合併儲存格）
+        function buildRowColumnMap(tr) {
+            const map = [];
+            const cells = getDirectChildrenByTag(tr, 'tc');
+            cells.forEach(tc => {
+                const span = getCellGridSpan(tc);
+                for (let k = 0; k < span; k++) {
+                    map.push(tc);
+                }
+            });
+            return map;
+        }
+
+        // 定位主出席表格與各關鍵列（日期、星期、開展時間、結束時間、學生序號列）
+        function inspectAttendanceTableInXml(xmlDoc) {
+            const tables = Array.from(xmlDoc.getElementsByTagNameNS(W_NS, 'tbl'));
+            let targetTbl = null;
+
+            for (const tbl of tables) {
+                const fullText = tbl.textContent || '';
+                if (fullText.includes('日期') && fullText.includes('開展時間')) {
+                    targetTbl = tbl;
+                    break;
+                }
+            }
+            if (!targetTbl && tables.length > 0) {
+                targetTbl = tables[tables.length - 1];
+            }
+            if (!targetTbl) return null;
+
+            const rows = getDirectChildrenByTag(targetTbl, 'tr');
+            let idCol = 1;
+            let nameCol = 2;
+            let gradeCol = 3;
+            let sessionStartCol = 5;
+            const rowIndices = {
+                date: -1,
+                weekday: -1,
+                startTime: -1,
+                endTime: -1,
+                students: {} // { 1: rowIdx, 2: rowIdx, ... }
+            };
+            const foundStudents = [];
+
+            // 先掃描表頭列以精準定位「學生證編號」、「學生姓名」、「就讀年級」與「第 1 節」欄索引
+            rows.forEach((tr) => {
+                const colMap = buildRowColumnMap(tr);
+                const rowText = colMap.map(tc => getCellText(tc));
+                const colIdxOf1 = rowText.findIndex((txt, cIdx) => cIdx >= 3 && txt === '1' && rowText[cIdx + 1] === '2');
+                if (colIdxOf1 !== -1) {
+                    sessionStartCol = colIdxOf1;
+                    for (let c = 0; c < sessionStartCol; c++) {
+                        const headerTxt = (rowText[c] || '').replace(/\s+/g, '');
+                        if (headerTxt.includes('學生證') || (headerTxt.includes('編號') && c > 0)) idCol = c;
+                        if (headerTxt.includes('姓名')) nameCol = c;
+                        if (headerTxt.includes('年級') || headerTxt.includes('班別')) gradeCol = c;
+                    }
+                }
+            });
+
+            rows.forEach((tr, rIdx) => {
+                const colMap = buildRowColumnMap(tr);
+                const rowText = colMap.map(tc => getCellText(tc));
+
+                // 偵測日期、星期、開展時間、結束時間列
+                const joinedLabel = rowText.slice(0, Math.max(sessionStartCol, 6)).join(' ');
+                if (rowIndices.date === -1 && joinedLabel.includes('日期')) rowIndices.date = rIdx;
+                if (rowIndices.weekday === -1 && joinedLabel.includes('星期')) rowIndices.weekday = rIdx;
+                if (rowIndices.startTime === -1 && joinedLabel.includes('開展時間')) rowIndices.startTime = rIdx;
+                if (rowIndices.endTime === -1 && joinedLabel.includes('結束時間')) rowIndices.endTime = rIdx;
+
+                // 偵測學生序號列（第 0 欄為 1~30 的數字）
+                const firstCell = (rowText[0] || '').trim();
+                if (/^\d{1,2}\.?$/.test(firstCell)) {
+                    const num = parseInt(firstCell, 10);
+                    if (num >= 1 && num <= 30 && rowIndices.students[num] === undefined) {
+                        rowIndices.students[num] = rIdx;
+                        const idCell = (rowText[idCol] || '').trim();
+                        const nameCell = (rowText[nameCol] || '').trim();
+                        const gradeCell = (rowText[gradeCol] || '').trim();
+                        foundStudents.push({ num, id: idCell, name: nameCell, grade: gradeCell });
+                    }
+                }
+            });
+
+            foundStudents.sort((a, b) => a.num - b.num);
+
+            return {
+                tbl: targetTbl,
+                rows,
+                idCol,
+                nameCol,
+                gradeCol,
+                sessionStartCol,
+                rowIndices,
+                foundStudents
+            };
+        }
+
+        // 將原始 Word 範本中的學生證編號、姓名、年級完整同步到網頁出席表（保留已輸入的出席紀錄）
+        function syncRosterFromTemplateInfo(classKey, info) {
+            if (!info || !Array.isArray(info.foundStudents) || info.foundStudents.length === 0) {
+                return { syncedCount: 0, idCount: 0 };
+            }
+            const data = appState.classes[classKey];
+            const oldStudents = data.students || [];
+
+            // 建立舊出席紀錄對應表（優先依學生證編號，其次依姓名）
+            const oldById = new Map();
+            const oldByName = new Map();
+            oldStudents.forEach(st => {
+                const sId = (st.id || '').trim();
+                const sName = (st.name || '').replace(/\s+/g, '');
+                if (sId) oldById.set(sId, st.attendance);
+                if (sName) oldByName.set(sName, st.attendance);
+            });
+
+            const newStudents = info.foundStudents.map((fs, idx) => {
+                const normName = (fs.name || '').replace(/\s+/g, '');
+                let preservedAttendance = null;
+                if (fs.id && oldById.has(fs.id)) {
+                    preservedAttendance = oldById.get(fs.id);
+                } else if (normName && oldByName.has(normName)) {
+                    preservedAttendance = oldByName.get(normName);
+                } else if (oldStudents[idx] && !(oldStudents[idx].name || '').trim() && !normName) {
+                    preservedAttendance = oldStudents[idx].attendance;
+                }
+
+                return {
+                    id: fs.id || '',
+                    name: fs.name || '',
+                    grade: fs.grade || '',
+                    attendance: preservedAttendance ? [...preservedAttendance] : Array(SESSION_COUNT).fill('')
+                };
+            });
+
+            data.students = newStudents;
+            const syncedCount = newStudents.filter(s => s.name || s.id).length;
+            const idCount = newStudents.filter(s => s.id).length;
+            return { syncedCount, idCount };
+        }
+
+        // 啟動時若已保存 Word 範本，但目前表格名單與範本不一致（例如缺少學生證編號或姓名不同），自動同步
+        async function autoSyncMissingIdsFromTemplates() {
+            if (typeof JSZip === 'undefined') return;
+            let anyUpdated = false;
+
+            for (const classKey of ['A', 'B']) {
+                const tpl = wordTemplates[classKey];
+                if (!tpl || !tpl.buffer) continue;
+                try {
+                    const zip = await JSZip.loadAsync(tpl.buffer.slice(0));
+                    const docXmlFile = zip.file('word/document.xml');
+                    if (!docXmlFile) continue;
+                    const xmlStr = await docXmlFile.async('string');
+                    const xmlDoc = new DOMParser().parseFromString(xmlStr, 'application/xml');
+                    const info = inspectAttendanceTableInXml(xmlDoc);
+                    if (!info || info.foundStudents.length === 0) continue;
+
+                    const curStudents = appState.classes[classKey].students || [];
+                    const hasMismatch = info.foundStudents.some((fs, idx) => {
+                        const cur = curStudents[idx];
+                        if (!cur) return true;
+                        const needIdSync = fs.id && cur.id !== fs.id;
+                        const needNameSync = fs.name && cur.name !== fs.name;
+                        const needGradeSync = fs.grade && cur.grade !== fs.grade;
+                        return needIdSync || needNameSync || needGradeSync;
+                    });
+
+                    if (hasMismatch) {
+                        syncRosterFromTemplateInfo(classKey, info);
+                        anyUpdated = true;
+                    }
+                } catch (e) {
+                    console.warn(`自動同步 ${classKey} 班範本名單略過：`, e);
+                }
+            }
+
+            if (anyUpdated) {
+                saveState();
+                refreshAllUI();
+            }
+        }
+
+        async function syncCurrentTemplateRoster() {
+            const classKey = appState.currentClass;
+            const tpl = wordTemplates[classKey];
+            if (!tpl || !tpl.buffer) {
+                showToast('目前尚未上傳本班的 Word 範本', 'error');
+                return;
+            }
+            try {
+                const zip = await JSZip.loadAsync(tpl.buffer.slice(0));
+                const docXmlFile = zip.file('word/document.xml');
+                if (!docXmlFile) throw new Error('範本缺少 document.xml');
+                const xmlStr = await docXmlFile.async('string');
+                const xmlDoc = new DOMParser().parseFromString(xmlStr, 'application/xml');
+                const info = inspectAttendanceTableInXml(xmlDoc);
+                if (!info) throw new Error('無法偵測範本中的出席表格');
+
+                const { syncedCount, idCount } = syncRosterFromTemplateInfo(classKey, info);
+                saveState();
+                refreshAllUI();
+                showToast(`已從原檔同步 ${syncedCount} 位學生資料（含 ${idCount} 筆學生證編號）`, 'success');
+            } catch (err) {
+                console.error('同步範本名單失敗：', err);
+                showToast(`同步失敗：${err.message}`, 'error');
+            }
+        }
+
+        async function handleTemplateUpload(event) {
+            const file = event.target?.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+
+            if (!file.name.toLowerCase().endsWith('.docx')) {
+                showToast('請上傳 .docx 格式的 Word 檔案', 'error');
+                return;
+            }
+            if (typeof JSZip === 'undefined') {
+                showToast('JSZip 尚未載入完成，請稍後再試', 'error');
+                return;
+            }
+
+            try {
+                const buffer = await file.arrayBuffer();
+                const zip = await JSZip.loadAsync(buffer);
+                const docXmlFile = zip.file('word/document.xml');
+                if (!docXmlFile) {
+                    throw new Error('找不到 word/document.xml，請確認此為有效的 .docx 檔案');
+                }
+
+                const xmlStr = await docXmlFile.async('string');
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlStr, 'application/xml');
+                const info = inspectAttendanceTableInXml(xmlDoc);
+
+                if (!info) {
+                    throw new Error('無法在檔案中偵測到出席表格');
+                }
+
+                const classKey = appState.currentClass;
+                const { syncedCount, idCount } = syncRosterFromTemplateInfo(classKey, info);
+                const detailMsg = `已同步原檔 ${syncedCount} 位學生（含 ${idCount} 筆學生證編號，第 1 節起於第 ${info.sessionStartCol + 1} 欄）；下載時將鎖定欄寬並保留全部原格式。`;
+
+                const tplObj = {
+                    name: file.name,
+                    buffer,
+                    info: detailMsg,
+                    updatedAt: new Date().toISOString()
+                };
+
+                wordTemplates[classKey] = tplObj;
+                saveState();
+                refreshAllUI();
+                await persistTemplate(classKey, tplObj);
+                showToast(`已上傳 ${classKey} 班 Word 範本，並同步 ${syncedCount} 位學生姓名與 ${idCount} 筆學生證編號！`, 'success');
+            } catch (err) {
+                console.error('上傳 Word 範本失敗：', err);
+                showToast(`範本讀取失敗：${err.message}`, 'error');
+            }
+        }
+
+        function removeCurrentTemplate() {
+            const classKey = appState.currentClass;
+            openConfirmModal(
+                '移除 Word 範本',
+                `確定要移除「${classKey} 班」已保存的原始 Word 範本嗎？`,
+                async () => {
+                    wordTemplates[classKey] = null;
+                    updateTemplateUI();
+                    await persistTemplate(classKey, null);
+                    showToast(`已移除 ${classKey} 班的原始 Word 範本`, 'info');
+                }
+            );
+        }
+
+        // 讀取表格各欄的原始寬度（twips，1pt = 20 twips）
+        function getTableGridWidths(tbl) {
+            const tblGrid = getDirectChildrenByTag(tbl, 'tblGrid')[0];
+            if (!tblGrid) return [];
+            const cols = getDirectChildrenByTag(tblGrid, 'gridCol');
+            return cols.map(c => parseInt(c.getAttribute('w:w') || c.getAttribute('w') || '0', 10) || 0);
+        }
+
+        // 鎖定表格為固定欄寬，避免填入文字後撐大表格
+        function lockTableLayoutFixed(xmlDoc, tbl) {
+            let tblPr = getDirectChildrenByTag(tbl, 'tblPr')[0];
+            if (!tblPr) {
+                tblPr = xmlDoc.createElementNS(W_NS, 'w:tblPr');
+                tbl.insertBefore(tblPr, tbl.firstChild);
+            }
+            let tblLayout = getDirectChildrenByTag(tblPr, 'tblLayout')[0];
+            if (!tblLayout) {
+                tblLayout = xmlDoc.createElementNS(W_NS, 'w:tblLayout');
+                tblPr.appendChild(tblLayout);
+            }
+            tblLayout.setAttribute('w:type', 'fixed');
+        }
+
+        // 估算文字在指定半點字級（half-points，例如 18 = 9pt）下的寬度（twips）
+        function estimateTextWidthTwips(text, halfPoints) {
+            const pt = halfPoints / 2;
+            let units = 0;
+            for (const ch of String(text)) {
+                if (/[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/.test(ch)) {
+                    units += 1.05; // 全形中文字
+                } else if (ch === '✓' || ch === '○') {
+                    units += 0.95;
+                } else if (ch === ':' || ch === '/' || ch === '.' || ch === '-' || ch === '1') {
+                    units += 0.42;
+                } else {
+                    units += 0.6;  // 一般半形英數
+                }
+            }
+            return units * pt * 20;
+        }
+
+        // 精準更新單一儲存格內容：保留原有樣式、鎖定不換行、必要時縮小字體與內距以貼合欄位寬度
+        function updateCellPreserveStyleAndFit(xmlDoc, tc, newText, colWidthTwips, defaultHalfPt = 18) {
+            const textStr = (newText === null || newText === undefined) ? '' : String(newText).trim();
+
+            // 取得儲存格寬度（優先使用 w:tcW，其次使用 tblGrid 欄寬）
+            let tcPr = getDirectChildrenByTag(tc, 'tcPr')[0];
+            if (!tcPr) {
+                tcPr = xmlDoc.createElementNS(W_NS, 'w:tcPr');
+                tc.insertBefore(tcPr, tc.firstChild);
+            }
+            let cellWidth = colWidthTwips || 0;
+            const tcW = getDirectChildrenByTag(tcPr, 'tcW')[0];
+            if (tcW) {
+                const wVal = parseInt(tcW.getAttribute('w:w') || tcW.getAttribute('w') || '0', 10);
+                const wType = tcW.getAttribute('w:type') || tcW.getAttribute('type') || 'dxa';
+                if (wVal > 0 && wType === 'dxa') {
+                    cellWidth = wVal;
+                }
+            }
+
+            // 取得既有段落與樣式，若無則建立
+            let paragraphs = getDirectChildrenByTag(tc, 'p');
+            let p = paragraphs[0];
+            if (!p) {
+                p = xmlDoc.createElementNS(W_NS, 'w:p');
+                tc.appendChild(p);
+            }
+            // 移除多餘段落以避免撐高列高
+            for (let i = paragraphs.length - 1; i >= 1; i--) {
+                tc.removeChild(paragraphs[i]);
+            }
+
+            // 取得原本的 rPr（字體設定）以便沿用原字型
+            let baseRPr = null;
+            const existingRuns = getDirectChildrenByTag(p, 'r');
+            for (const r of existingRuns) {
+                const rPr = getDirectChildrenByTag(r, 'rPr')[0];
+                if (rPr) {
+                    baseRPr = rPr.cloneNode(true);
+                    break;
+                }
+            }
+
+            // 清除段落內的舊 run
+            for (let i = p.childNodes.length - 1; i >= 0; i--) {
+                const child = p.childNodes[i];
+                if (child.nodeType === 1 && child.localName !== 'pPr') {
+                    p.removeChild(child);
+                }
+            }
+
+            // 確保段落置中且零段前段後間距
+            let pPr = getDirectChildrenByTag(p, 'pPr')[0];
+            if (!pPr) {
+                pPr = xmlDoc.createElementNS(W_NS, 'w:pPr');
+                p.insertBefore(pPr, p.firstChild);
+            }
+            let jc = getDirectChildrenByTag(pPr, 'jc')[0];
+            if (!jc) {
+                jc = xmlDoc.createElementNS(W_NS, 'w:jc');
+                pPr.appendChild(jc);
+            }
+            jc.setAttribute('w:val', 'center');
+
+            let spacing = getDirectChildrenByTag(pPr, 'spacing')[0];
+            if (!spacing) {
+                spacing = xmlDoc.createElementNS(W_NS, 'w:spacing');
+                pPr.appendChild(spacing);
+            }
+            spacing.setAttribute('w:before', '0');
+            spacing.setAttribute('w:after', '0');
+
+            if (!textStr) return;
+
+            // 讀取原字級（半點），若無則用預設值
+            let targetHalfPt = defaultHalfPt;
+            if (baseRPr) {
+                const origSz = getDirectChildrenByTag(baseRPr, 'sz')[0];
+                if (origSz) {
+                    const parsedSz = parseInt(origSz.getAttribute('w:val') || origSz.getAttribute('val') || '0', 10);
+                    if (parsedSz >= 10 && parsedSz <= 36) {
+                        targetHalfPt = parsedSz;
+                    }
+                }
+            }
+
+            // 若有明確欄寬，計算是否需縮窄內距與縮小字體（最低 5pt = 10 half-points）
+            if (cellWidth > 0) {
+                const paddingReserve = 70; // 左右保留極窄安全邊距
+                const availableWidth = Math.max(cellWidth - paddingReserve, 120);
+                let estWidth = estimateTextWidthTwips(textStr, targetHalfPt);
+
+                if (estWidth > availableWidth) {
+                    // 先縮窄該儲存格左右內距
+                    let tcMar = getDirectChildrenByTag(tcPr, 'tcMar')[0];
+                    if (!tcMar) {
+                        tcMar = xmlDoc.createElementNS(W_NS, 'w:tcMar');
+                        tcPr.appendChild(tcMar);
+                    }
+                    ['left', 'right'].forEach(side => {
+                        let sideEl = getDirectChildrenByTag(tcMar, side)[0];
+                        if (!sideEl) {
+                            sideEl = xmlDoc.createElementNS(W_NS, 'w:' + side);
+                            tcMar.appendChild(sideEl);
+                        }
+                        sideEl.setAttribute('w:w', '20');
+                        sideEl.setAttribute('w:type', 'dxa');
+                    });
+
+                    // 逐步縮小字級直到貼合欄位寬度
+                    while (targetHalfPt > 10 && estimateTextWidthTwips(textStr, targetHalfPt) > availableWidth) {
+                        targetHalfPt -= 1;
+                    }
+                }
+            }
+
+            // 加上不換行保護，避免換行撐高列高
+            let noWrap = getDirectChildrenByTag(tcPr, 'noWrap')[0];
+            if (!noWrap) {
+                noWrap = xmlDoc.createElementNS(W_NS, 'w:noWrap');
+                tcPr.appendChild(noWrap);
+            }
+
+            // 建立新 run 並套用計算後的字級
+            const newRun = xmlDoc.createElementNS(W_NS, 'w:r');
+            const runPr = baseRPr || xmlDoc.createElementNS(W_NS, 'w:rPr');
+
+            ['sz', 'szCs'].forEach(tag => {
+                let szEl = getDirectChildrenByTag(runPr, tag)[0];
+                if (!szEl) {
+                    szEl = xmlDoc.createElementNS(W_NS, 'w:' + tag);
+                    runPr.appendChild(szEl);
+                }
+                szEl.setAttribute('w:val', String(targetHalfPt));
+            });
+
+            newRun.appendChild(runPr);
+            const tEl = xmlDoc.createElementNS(W_NS, 'w:t');
+            tEl.setAttribute('xml:space', 'preserve');
+            tEl.textContent = textStr;
+            newRun.appendChild(tEl);
+            p.appendChild(newRun);
+        }
+
+        async function exportUsingOriginalTemplate(classKey, data) {
+            const tpl = wordTemplates[classKey];
+            const zip = await JSZip.loadAsync(tpl.buffer.slice(0));
+            const docXmlFile = zip.file('word/document.xml');
+            if (!docXmlFile) {
+                throw new Error('原始 Word 範本結構異常（缺少 document.xml）');
+            }
+
+            const xmlStr = await docXmlFile.async('string');
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlStr, 'application/xml');
+            const info = inspectAttendanceTableInXml(xmlDoc);
+
+            if (!info) {
+                throw new Error('無法在原始 Word 範本中定位出席表格');
+            }
+
+            // 鎖定原表格欄寬與固定排版
+            lockTableLayoutFixed(xmlDoc, info.tbl);
+            const gridWidths = getTableGridWidths(info.tbl);
+
+            const writeSessionRow = (rowIdx, field, defaultHalfPt) => {
+                if (rowIdx < 0 || !info.rows[rowIdx]) return;
+                const colMap = buildRowColumnMap(info.rows[rowIdx]);
+                for (let sIdx = 0; sIdx < SESSION_COUNT; sIdx++) {
+                    const colIdx = info.sessionStartCol + sIdx;
+                    const tc = colMap[colIdx];
+                    if (tc) {
+                        const colW = gridWidths[colIdx] || 0;
+                        updateCellPreserveStyleAndFit(xmlDoc, tc, data.sessions[sIdx][field] || '', colW, defaultHalfPt);
+                    }
+                }
+            };
+
+            // 更新日期、星期、開展時間與結束時間列
+            writeSessionRow(info.rowIndices.date, 'date', 16);
+            writeSessionRow(info.rowIndices.weekday, 'weekday', 16);
+            writeSessionRow(info.rowIndices.startTime, 'startTime', 14);
+            writeSessionRow(info.rowIndices.endTime, 'endTime', 14);
+
+            // 更新第 1~N 列學生的學生證編號、姓名、年級及第 1~10 節出席符號
+            data.students.forEach((st, stIdx) => {
+                const rowNum = stIdx + 1;
+                const rowIdx = info.rowIndices.students[rowNum];
+                if (rowIdx === undefined || !info.rows[rowIdx]) return;
+
+                const colMap = buildRowColumnMap(info.rows[rowIdx]);
+
+                // 若網頁上的學生證編號、姓名或年級與原檔不同，一併更新以維持一致
+                const syncCellIfChanged = (colIdx, val, defaultHalfPt) => {
+                    const tc = colMap[colIdx];
+                    if (!tc) return;
+                    const currentTxt = getCellText(tc);
+                    const nextTxt = (val || '').trim();
+                    if (currentTxt !== nextTxt) {
+                        const colW = gridWidths[colIdx] || 0;
+                        updateCellPreserveStyleAndFit(xmlDoc, tc, nextTxt, colW, defaultHalfPt);
+                    }
+                };
+                syncCellIfChanged(info.idCol, st.id, 16);
+                syncCellIfChanged(info.nameCol, st.name, 18);
+                syncCellIfChanged(info.gradeCol, st.grade, 16);
+
+                for (let sIdx = 0; sIdx < SESSION_COUNT; sIdx++) {
+                    const colIdx = info.sessionStartCol + sIdx;
+                    const tc = colMap[colIdx];
+                    if (tc) {
+                        const colW = gridWidths[colIdx] || 0;
+                        updateCellPreserveStyleAndFit(xmlDoc, tc, st.attendance[sIdx] || '', colW, 18);
+                    }
+                }
+            });
+
+            const serializer = new XMLSerializer();
+            const updatedXml = serializer.serializeToString(xmlDoc);
+            zip.file('word/document.xml', updatedXml);
+
+            const outBlob = await zip.generateAsync({
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                compression: 'DEFLATE'
+            });
+
+            const downloadName = getDownloadFileName(classKey, data, 'docx');
+            triggerDownload(outBlob, downloadName);
+            showToast(`已保留原檔格式並下載「${downloadName}」`, 'success');
+        }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        // 未上傳原始範本時的備用 FE-RN02 Word 產生器
+        async function exportFallbackWord(classKey, data, fileName) {
+            if (typeof window.docx === 'undefined') {
+                showToast('Word 匯出元件尚未載入，請稍後再試或先上傳原始 .docx 範本', 'error');
+                return;
+            }
+            const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType, PageOrientation, VerticalAlign } = window.docx;
+            const meta = data.meta;
+
+            const makeCell = (text, opts = {}) => new TableCell({
+                width: opts.width ? { size: opts.width, type: WidthType.DXA } : undefined,
+                columnSpan: opts.colSpan || 1,
+                rowSpan: opts.rowSpan || 1,
+                verticalAlign: VerticalAlign.CENTER,
+                children: [
+                    new Paragraph({
+                        alignment: opts.align || AlignmentType.CENTER,
+                        spacing: { before: 20, after: 20 },
+                        children: [new TextRun({ text: String(text || ''), size: opts.size || 18, bold: !!opts.bold, font: 'PMingLiU' })]
+                    })
+                ]
+            });
+
+            const headerRows = [
+                new TableRow({
+                    children: [
+                        makeCell(`校部編號：${meta.schoolCode || '________________'}`, { colSpan: 7, align: AlignmentType.LEFT }),
+                        makeCell(`校部名稱：${meta.schoolName || '________________'}`, { colSpan: 8, align: AlignmentType.LEFT })
+                    ]
+                }),
+                new TableRow({
+                    children: [
+                        makeCell(`資助主題：${meta.theme || '________________'}`, { colSpan: 7, align: AlignmentType.LEFT }),
+                        makeCell(`上課地點：${meta.location || '________________'}`, { colSpan: 8, align: AlignmentType.LEFT })
+                    ]
+                }),
+                new TableRow({
+                    children: [
+                        makeCell(`資助項目名稱：${meta.projectName || ''}`, { colSpan: 7, align: AlignmentType.LEFT }),
+                        makeCell(`資助項目編號：${meta.projectCode || ''}`, { colSpan: 8, align: AlignmentType.LEFT })
+                    ]
+                }),
+                new TableRow({
+                    children: [
+                        makeCell(`導師姓名：${meta.tutorName || '________________'}`, { colSpan: 7, align: AlignmentType.LEFT }),
+                        makeCell(`實施期間：${meta.period || '________'}  每節(分鐘)：${meta.minutesPerSession || '____'}  總節數：${meta.totalSessions || '____'}`, { colSpan: 8, align: AlignmentType.LEFT })
+                    ]
+                })
+            ];
+
+            const sessionHeaderRow = new TableRow({
+                children: [
+                    makeCell('序號', { rowSpan: 5, bold: true }),
+                    makeCell('學生證編號', { rowSpan: 5, bold: true }),
+                    makeCell('學生姓名', { rowSpan: 5, bold: true }),
+                    makeCell('就讀年級', { rowSpan: 5, bold: true }),
+                    makeCell('節', { bold: true }),
+                    ...data.sessions.map(s => makeCell(String(s.index), { bold: true }))
+                ]
+            });
+
+            const buildMetaSessionRow = (label, field) => new TableRow({
+                children: [
+                    makeCell(label, { bold: true }),
+                    ...data.sessions.map(s => makeCell(s[field] || '', { size: 16 }))
+                ]
+            });
+
+            const studentRows = data.students.map((st, idx) => new TableRow({
+                children: [
+                    makeCell(String(idx + 1)),
+                    makeCell(st.id || ''),
+                    makeCell(st.name || ''),
+                    makeCell(st.grade || ''),
+                    ...(idx === 0 ? [makeCell('✓:出席 X:缺席 ○:病假', { rowSpan: data.students.length, size: 14 })] : []),
+                    ...st.attendance.map(m => makeCell(m || '', { size: 18 }))
+                ]
+            }));
+
+            const remarksRow = new TableRow({
+                children: [
+                    makeCell(`備註（倘有）：${meta.remarks || ''}`, { colSpan: 15, align: AlignmentType.LEFT })
+                ]
+            });
+
+            const doc = new Document({
+                sections: [{
+                    properties: {
+                        page: {
+                            size: { orientation: PageOrientation.LANDSCAPE },
+                            margin: { top: 500, right: 500, bottom: 500, left: 500 }
+                        }
+                    },
+                    children: [
+                        new Paragraph({
+                            alignment: AlignmentType.CENTER,
+                            spacing: { after: 120 },
+                            children: [new TextRun({ text: `${meta.year || '____/____'} 學校年度  學校發展資助計劃報告書 — 出席表 (${classKey} 班)`, bold: true, size: 24, font: 'PMingLiU' })]
+                        }),
+                        new Table({
+                            width: { size: 100, type: WidthType.PERCENTAGE },
+                            rows: [
+                                ...headerRows,
+                                sessionHeaderRow,
+                                buildMetaSessionRow('日期', 'date'),
+                                buildMetaSessionRow('星期', 'weekday'),
+                                buildMetaSessionRow('開展時間', 'startTime'),
+                                buildMetaSessionRow('結束時間', 'endTime'),
+                                ...studentRows,
+                                remarksRow
+                            ]
+                        })
+                    ]
+                }]
+            });
+
+            const blob = await Packer.toBlob(doc);
+            triggerDownload(blob, fileName);
+            showToast(`已下載「${fileName}」（提示：上傳原始 .docx 範本可 100% 保留原檔排版）`, 'success');
+        }
+
+        async function exportToWord() {
+            const data = getCurrentData();
+            const classKey = appState.currentClass;
+
+            if (wordTemplates[classKey] && typeof JSZip !== 'undefined') {
+                try {
+                    await exportUsingOriginalTemplate(classKey, data);
+                    return;
+                } catch (err) {
+                    console.error('寫入原始 Word 範本失敗：', err);
+                    showToast(`寫入原檔失敗：${err.message}`, 'error');
+                    return;
+                }
+            }
+
+            const fileName = getDownloadFileName(classKey, data, 'docx');
+            try {
+                await exportFallbackWord(classKey, data, fileName);
+            } catch (err) {
+                console.error('匯出 Word 失敗：', err);
+                showToast(`匯出失敗：${err.message}`, 'error');
+            }
+        }
+
+        // =========================================================================
+        // 9. 初始化應用程式
+        // =========================================================================
+        let storageInitialized = false;
+        function startInitOnce() {
+            if (storageInitialized) return;
+            storageInitialized = true;
+            bootstrapStorage();
+        }
+
+        window.addEventListener('cloudStoreReady', startInitOnce);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('confirmOkBtn').addEventListener('click', () => {
+                const cb = confirmCallback;
+                closeConfirmModal();
+                if (typeof cb === 'function') cb();
+            });
+
+            setupDragAndDrop();
+            refreshAllUI();
+
+            // 若模組已就緒或短時間內未觸發事件，啟動儲存初始化
+            if (window.cloudStore) {
+                startInitOnce();
+            } else {
+                setTimeout(startInitOnce, 500);
+            }
+        });
+    </script>
+</body>
+</html>
