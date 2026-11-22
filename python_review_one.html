@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python 溫習闖關系統 - review</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入字體：Noto Sans TC 與程式碼專用字體 JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .font-code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* 答錯時的震動動畫 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+        /* 淡入動畫 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.35s ease-out forwards;
+        }
+        /* OnlineGDB 風格 Python 語法高亮配色 */
+        .py-kw { color: #569cd6; font-weight: 600; }   /* 關鍵字 */
+        .py-fn { color: #dcdcaa; }                     /* 內建函式 */
+        .py-str { color: #ce9178; }                    /* 字串 */
+        .py-num { color: #b5cea8; }                    /* 數字 */
+        .py-cm { color: #6a9955; font-style: italic; } /* 註解 */
+        .gdb-editor-bg { background-color: #1e1e1e; }
+        .gdb-toolbar-bg { background-color: #2d2d2d; }
+        .gdb-tab-bg { background-color: #252526; }
+        .gdb-gutter-bg { background-color: #1e1e1e; color: #858585; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col selection:bg-indigo-200 selection:text-indigo-900">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-code font-bold text-lg shadow-sm">
+                    Py
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-base sm:text-lg leading-tight">Python 溫習闖關系統</h1>
+                    <p class="text-xs text-slate-500">作業題目：<span class="font-code font-semibold text-indigo-600">review</span></p>
+                </div>
+            </div>
+            <!-- 登入後顯示學生資訊與進度 -->
+            <div id="header-student-info" class="hidden items-center gap-2 text-xs sm:text-sm">
+                <span id="badge-student" class="px-3 py-1 rounded-full bg-slate-100 border border-slate-200 font-medium text-slate-700"></span>
+                <span id="badge-progress" class="px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 font-bold text-indigo-700"></span>
+            </div>
+        </div>
+        <!-- 進度條 -->
+        <div id="progress-bar-container" class="hidden w-full h-1.5 bg-slate-200">
+            <div id="progress-bar-fill" class="h-full bg-indigo-600 transition-all duration-500 ease-out" style="width: 0%"></div>
+        </div>
+    </header>
+
+    <!-- 主要內容區域 -->
+    <main class="flex-1 w-full max-w-7xl mx-auto px-4 py-4 sm:py-5 flex flex-col justify-center">
+
+        <!-- ==================== 畫面 1：登入與班別學號選擇 ==================== -->
+        <section id="screen-login" class="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 sm:p-10 max-w-xl mx-auto w-full animate-fade-in">
+            <div class="text-center mb-8">
+                <span class="inline-block px-3.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold tracking-wide uppercase mb-3 border border-indigo-100">
+                    作業題目：review
+                </span>
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-2">準備好開始溫習 Python 嗎？</h2>
+                <p class="text-slate-500 text-sm sm:text-base">請先選擇你的班別與學號，完成全部 18 道關卡後即可下載作業完成圖。</p>
+            </div>
+
+            <!-- 關卡大綱預覽 -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8 text-center">
+                <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <div class="text-xs font-bold text-emerald-700 mb-0.5">基礎篇 (5題)</div>
+                    <div class="text-[11px] text-emerald-600">邏輯與數學運算</div>
+                </div>
+                <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
+                    <div class="text-xs font-bold text-amber-700 mb-0.5">中階篇 (5題)</div>
+                    <div class="text-[11px] text-amber-600">列表與條件判斷</div>
+                </div>
+                <div class="p-3 rounded-xl bg-rose-50 border border-rose-100">
+                    <div class="text-xs font-bold text-rose-700 mb-0.5">高階篇 (5題)</div>
+                    <div class="text-[11px] text-rose-600">重複迴圈控制</div>
+                </div>
+                <div class="p-3 rounded-xl bg-violet-50 border border-violet-100">
+                    <div class="text-xs font-bold text-violet-700 mb-0.5">實戰篇 (3題)</div>
+                    <div class="text-[11px] text-violet-600">完整編程練習</div>
+                </div>
+            </div>
+
+            <!-- 選擇表單 -->
+            <div class="space-y-5">
+                <div>
+                    <label for="select-class" class="block text-sm font-bold text-slate-700 mb-2">選擇班別</label>
+                    <div id="class-buttons" class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                        <!-- 由 JS 動態生成 F5A ~ F5F 按鈕 -->
+                    </div>
+                </div>
+
+                <div>
+                    <label for="select-student-id" class="block text-sm font-bold text-slate-700 mb-2">選擇學號 (1 - 40)</label>
+                    <select id="select-student-id" class="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                        <option value="">-- 請選擇你的學號 --</option>
+                        <!-- 由 JS 動態生成 1 至 40 -->
+                    </select>
+                </div>
+
+                <!-- 驗證錯誤訊息 -->
+                <div id="login-error" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium text-center">
+                    請先選擇班別與學號！
+                </div>
+
+                <button id="btn-start" type="button" class="w-full py-3.5 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-base shadow-md shadow-indigo-200 transition flex items-center justify-center gap-2">
+                    <span>開始闖關</span>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- ==================== 畫面 2：答題闖關畫面（左右橫向雙欄排版） ==================== -->
+        <section id="screen-quiz" class="hidden w-full animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+
+                <!-- 左欄：題目要求、操作按鈕、回饋與範例區 -->
+                <div class="lg:col-span-5 bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-5 flex flex-col justify-between gap-4">
+                    <div class="space-y-3">
+                        <!-- 關卡分類標籤與題號 -->
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span id="level-badge" class="px-2.5 py-1 rounded-lg text-xs font-bold border"></span>
+                                <span id="question-counter" class="text-sm font-bold text-slate-600"></span>
+                            </div>
+                        </div>
+
+                        <!-- 題目要求區（僅說明要求，不提供語法提示） -->
+                        <div class="pb-3 border-b border-slate-100">
+                            <h2 id="question-title" class="text-lg sm:text-xl font-extrabold text-slate-900 mb-1.5"></h2>
+                            <p id="question-desc" class="text-slate-600 text-sm leading-relaxed"></p>
+                            <p id="mode-tip" class="text-xs text-slate-500 mt-2"></p>
+                        </div>
+
+                        <!-- 操作按鈕列 -->
+                        <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                            <button id="btn-submit" type="button" class="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>測試答案</span>
+                            </button>
+
+                            <button id="btn-next" type="button" class="hidden flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+                                <span id="btn-next-text">進入下一關</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                            </button>
+
+                            <!-- 查看例子按鈕：預設鎖定，等待倒數 15 秒後才能點開查看參考例子 -->
+                            <button id="btn-toggle-example" type="button" disabled class="px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-400 border border-slate-200 font-bold text-sm transition flex items-center gap-1.5 cursor-not-allowed">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                                <span id="example-btn-text">查看例子 (15s)</span>
+                            </button>
+                        </div>
+
+                        <!-- 正確回饋框 -->
+                        <div id="feedback-success" class="hidden p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 animate-fade-in">
+                            <div class="flex items-start gap-2.5">
+                                <svg class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <div>
+                                    <h4 class="font-bold text-sm text-emerald-900">測試成功！答對了！</h4>
+                                    <p id="success-explanation" class="text-xs sm:text-sm text-emerald-700 mt-1"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 錯誤回饋框（不提前洩漏語法提示） -->
+                        <div id="feedback-error" class="hidden p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 animate-fade-in">
+                            <div class="flex items-start gap-2.5">
+                                <svg class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <div>
+                                    <h4 class="font-bold text-sm text-rose-900">測試未通過，尚未能進入下一關</h4>
+                                    <p id="error-status-msg" class="text-xs sm:text-sm mt-1">請先自行檢查語法與輸出要求，待倒數結束後可點擊「查看例子」參考。</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 參考例子展示框（等待 15 秒解鎖並按下「查看例子」後展開） -->
+                        <div id="example-box" class="hidden p-3.5 rounded-xl bg-amber-50 border border-amber-200 animate-fade-in">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <h4 class="font-bold text-amber-900 text-xs sm:text-sm">📘 參考例子</h4>
+                                <span class="text-[11px] text-amber-700">觀察例子語法並完成作答</span>
+                            </div>
+                            <pre id="example-code" class="font-code text-xs gdb-editor-bg text-slate-100 p-3 rounded-lg overflow-x-auto leading-relaxed border border-slate-700"></pre>
+                            <p id="example-note" class="text-xs text-amber-800 mt-1.5"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右欄：OnlineGDB 風格程式碼編輯與終端機區塊 -->
+                <div class="lg:col-span-7 gdb-editor-bg text-slate-100 rounded-2xl shadow-lg border border-slate-800 overflow-hidden flex flex-col">
+                    <!-- 1. OnlineGDB 頂部工具列 -->
+                    <div class="gdb-toolbar-bg px-3 sm:px-4 py-2 border-b border-black/40 flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="font-code text-xs font-bold text-slate-200 tracking-tight flex items-center gap-1.5 mr-1">
+                                <span class="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[10px]">GDB</span>
+                                <span class="hidden sm:inline text-slate-300">online Python</span>
+                            </span>
+                            <!-- 仿 OnlineGDB 綠色 Run 按鈕（與測試答案連動） -->
+                            <button id="btn-ide-run" type="button" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-code text-xs font-bold flex items-center gap-1 shadow-sm transition">
+                                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+                                <span>Run</span>
+                            </button>
+                            <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-700/70 text-slate-300 font-code text-xs select-none">
+                                <span>🐞 Debug</span>
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs font-code">
+                            <span class="text-slate-400 hidden sm:inline">Language</span>
+                            <span class="px-2.5 py-1 rounded bg-slate-800 border border-slate-600 text-sky-300 font-semibold">
+                                Python 3
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 2. 檔案分頁列 -->
+                    <div class="gdb-tab-bg px-2 pt-1.5 border-b border-black/40 flex items-center justify-between">
+                        <div class="gdb-editor-bg px-3.5 py-1.5 rounded-t-md border-t-2 border-t-sky-400 border-x border-slate-700/60 flex items-center gap-2 text-xs font-code text-slate-200">
+                            <span class="text-amber-400 font-bold">py</span>
+                            <span>main.py</span>
+                        </div>
+                        <span id="editor-mode-badge" class="text-[11px] font-code text-slate-400 pr-2">填空模式</span>
+                    </div>
+
+                    <!-- 3. 程式碼編輯區（左側行號 + 右側語法高亮程式碼與填空/編程區） -->
+                    <div id="code-container" class="font-code text-sm leading-7 overflow-x-auto py-3 select-text flex-1 min-h-[210px]">
+                        <!-- 由 JS 逐行渲染行號、語法高亮程式碼與 <input> 或 <textarea> -->
+                    </div>
+
+                    <!-- 4. 底部 Console / Output 視窗 -->
+                    <div class="border-t-2 border-slate-700 bg-[#141414]">
+                        <div class="gdb-tab-bg px-3 sm:px-4 py-1.5 border-b border-slate-800 flex items-center justify-between text-xs font-code">
+                            <div class="flex items-center gap-3">
+                                <span class="text-slate-200 font-bold border-b-2 border-emerald-500 pb-0.5">Console Output</span>
+                                <span id="console-status" class="text-slate-400">Ready</span>
+                            </div>
+                            <span class="text-[11px] text-slate-400">Standard Input / Output</span>
+                        </div>
+                        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 font-code text-xs sm:text-sm">
+                            <!-- 執行結果終端機 -->
+                            <div class="bg-black/60 rounded-lg border border-slate-800 p-2.5 min-h-[84px]">
+                                <div class="text-[11px] text-slate-400 mb-1">&gt;_ 執行輸出 (Terminal)</div>
+                                <div id="console-output" class="text-slate-300 whitespace-pre-wrap leading-relaxed">點擊上方 ▶ Run 或左側「測試答案」執行程式...</div>
+                            </div>
+                            <!-- 目標預期輸出 -->
+                            <div class="bg-black/40 rounded-lg border border-slate-800 p-2.5 min-h-[84px]">
+                                <div class="text-[11px] text-emerald-400/90 mb-1">🎯 目標預期輸出 (Expected Output)</div>
+                                <div id="expected-output" class="text-emerald-400 whitespace-pre-wrap leading-relaxed"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ==================== 畫面 3：全部通關與作業完成圖下載 ==================== -->
+        <section id="screen-complete" class="hidden w-full animate-fade-in">
+            <div class="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8 text-center">
+                <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-2">恭喜完成所有 Python 溫習關卡！</h2>
+                <p class="text-slate-600 text-sm sm:text-base mb-6">請點擊下方按鈕下載你的「作業完成圖」，並依老師指示繳交。</p>
+
+                <!-- 證書圖片預覽區 -->
+                <div class="max-w-2xl mx-auto mb-6 rounded-xl overflow-hidden border-2 border-slate-200 shadow-md bg-slate-50">
+                    <canvas id="certificate-canvas" class="w-full h-auto block"></canvas>
+                </div>
+
+                <!-- 下載與重試按鈕 -->
+                <div class="flex flex-wrap items-center justify-center gap-3">
+                    <button id="btn-download" type="button" class="px-7 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-base shadow-md shadow-indigo-200 transition flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span>下載作業完成圖 (PNG)</span>
+                    </button>
+                    <button id="btn-restart" type="button" class="px-5 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition">
+                        重新溫習
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="py-3 text-center text-xs text-slate-400">
+        Python 互動溫習系統 &bull; 作業題目：review &bull; 基礎 / 中階 / 高階 / 實戰共 18 關
+    </footer>
+
+    <script>
+        /**
+         * ==========================================
+         * 1. 題庫資料 (共 18 題：基礎5題、中階5題、高階5題、實戰編程3題)
+         *    每題標題與敘述只說明題目要求，不提供語法提示；
+         *    待倒數時間結束後，學生可點擊「查看例子」參考。
+         * ==========================================
+         */
+        const QUESTIONS = [
+            // ================= 基礎篇 (5題) =================
+            {
+                id: 1,
+                level: "基礎篇",
+                levelColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                title: "次方運算",
+                desc: "請在空格中填入正確的運算子，計算 2 的 3 次方，使程式輸出 8。",
+                codeBefore: "base = 2\nresult = base ",
+                codeAfter: " 3\nprint(result)",
+                answers: ["**"],
+                expectedOutput: "8",
+                exampleCode: "# 計算 5 的 2 次方 (5² = 25)\nans = 5 ** 2\nprint(ans)  # 輸出 25",
+                exampleNote: "單個 * 是乘法，兩個 ** 才是次方運算。",
+                explanation: "2 ** 3 代表 2 的 3 次方，結果為 8。"
+            },
+            {
+                id: 2,
+                level: "基礎篇",
+                levelColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                title: "整數商數計算",
+                desc: "請在空格中填入正確的運算子，計算 17 除以 5 的「整數商數」（捨去小數部分），使程式輸出 3。",
+                codeBefore: "a = 17\nb = 5\nquotient = a ",
+                codeAfter: " b\nprint(quotient)",
+                answers: ["//"],
+                expectedOutput: "3",
+                exampleCode: "# 比較一般除法與整數除法\nprint(10 / 3)   # 輸出 3.3333333333333335\nprint(10 // 3)  # 輸出 3",
+                exampleNote: "單斜線 / 會產生小數，雙斜線 // 會直接取整數商。",
+                explanation: "17 // 5 會捨去小數，直接得到整數商 3。"
+            },
+            {
+                id: 3,
+                level: "基礎篇",
+                levelColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                title: "計算餘數",
+                desc: "請在空格中填入正確的運算子，計算 17 除以 5 之後的「餘數」，使程式輸出 2。",
+                codeBefore: "a = 17\nb = 5\nremainder = a ",
+                codeAfter: " b\nprint(remainder)",
+                answers: ["%"],
+                expectedOutput: "2",
+                exampleCode: "# 計算 10 除以 3 的餘數\nrem = 10 % 3\nprint(rem)  # 輸出 1 (因為 10 = 3*3 + 1)",
+                exampleNote: "% 用於求兩數相除的餘數，常用來判斷奇偶數。",
+                explanation: "17 除以 5 商 3 餘 2，因此 17 % 5 的結果為 2。"
+            },
+            {
+                id: 4,
+                level: "基礎篇",
+                levelColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                title: "多重條件同時成立",
+                desc: "必須「年齡大於等於 18」而且「持有駕照」才能開車。請填入正確的邏輯運算子，使程式輸出 True。",
+                codeBefore: "age = 20\nhas_license = True\ncan_drive = (age >= 18) ",
+                codeAfter: " has_license\nprint(can_drive)",
+                answers: ["and"],
+                expectedOutput: "True",
+                exampleCode: "# 成績及格且出席率達標才可獲得證書\npassed = (score >= 60) and (attendance >= 80)\nprint(passed)",
+                exampleNote: "and 要求左右兩邊條件同時為 True，結果才會是 True。",
+                explanation: "and 表示兩個條件必須同時成立，這裡兩邊都是 True，所以結果為 True。"
+            },
+            {
+                id: 5,
+                level: "基礎篇",
+                levelColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                title: "布林值條件反轉",
+                desc: "只要「是週末」或者「不是上學日」就可以休息。請在空格填入能將布林值反轉的運算子，使程式輸出 True。",
+                codeBefore: "is_weekend = False\nis_school_day = False\ncan_rest = is_weekend or (",
+                codeAfter: " is_school_day)\nprint(can_rest)",
+                answers: ["not"],
+                expectedOutput: "True",
+                exampleCode: "is_raining = False\nif not is_raining:\n    print('天氣晴朗，可以出門！')",
+                exampleNote: "not False 的結果是 True，not True 的結果是 False。",
+                explanation: "not is_school_day 會將 False 轉為 True，再搭配 or 運算後結果為 True。"
+            },
+
+            // ================= 中階篇 (5題) =================
+            {
+                id: 6,
+                level: "中階篇",
+                levelColor: "bg-amber-50 text-amber-700 border-amber-200",
+                title: "從列表取出指定項目",
+                desc: "請填入正確的索引編號，從 fruits 列表中取出並印出 'banana'。",
+                codeBefore: "fruits = ['apple', 'banana', 'cherry']\nprint(fruits[",
+                codeAfter: "])",
+                answers: ["1", "-2"],
+                expectedOutput: "banana",
+                exampleCode: "colors = ['red', 'green', 'blue']\nprint(colors[0])  # 輸出 red\nprint(colors[2])  # 輸出 blue",
+                exampleNote: "列表索引從 0 開始：第 1 項為 0、第 2 項為 1、第 3 項為 2。",
+                explanation: "列表索引從 0 開始，因此 'banana' 的索引位置是 1。"
+            },
+            {
+                id: 7,
+                level: "中階篇",
+                levelColor: "bg-amber-50 text-amber-700 border-amber-200",
+                title: "列表尾端新增項目",
+                desc: "請填入正確的方法名稱，將數字 100 加到 scores 列表的最尾端。",
+                codeBefore: "scores = [80, 90]\nscores.",
+                codeAfter: "(100)\nprint(scores)",
+                answers: ["append"],
+                expectedOutput: "[80, 90, 100]",
+                exampleCode: "names = ['Amy', 'Bob']\nnames.append('Cindy')\nprint(names)  # 輸出 ['Amy', 'Bob', 'Cindy']",
+                exampleNote: "語法格式為：列表名稱.append(要加入的項目)。",
+                explanation: "scores.append(100) 會將 100 新增至列表尾端。"
+            },
+            {
+                id: 8,
+                level: "中階篇",
+                levelColor: "bg-amber-50 text-amber-700 border-amber-200",
+                title: "計算列表元素個數",
+                desc: "請填入正確的內建函式名稱，計算 nums 列表中共有多少個元素，並輸出 4。",
+                codeBefore: "nums = [10, 20, 30, 40]\ncount = ",
+                codeAfter: "(nums)\nprint(count)",
+                answers: ["len"],
+                expectedOutput: "4",
+                exampleCode: "items = ['筆', '尺', '橡皮擦']\nprint(len(items))  # 輸出 3",
+                exampleNote: "len() 可以快速回傳列表內的元素總數。",
+                explanation: "len(nums) 會計算列表內的元素個數，這裡共有 4 個元素。"
+            },
+            {
+                id: 9,
+                level: "中階篇",
+                levelColor: "bg-amber-50 text-amber-700 border-amber-200",
+                title: "多重條件分支判斷",
+                desc: "當分數未達 90 分時，接著判斷是否大於等於 60 分。請填入正確的條件關鍵字。",
+                codeBefore: "score = 75\nif score >= 90:\n    print('優秀')\n",
+                codeAfter: " score >= 60:\n    print('及格')\nelse:\n    print('不及格')",
+                answers: ["elif"],
+                expectedOutput: "及格",
+                exampleCode: "temp = 25\nif temp > 30:\n    print('很熱')\nelif temp >= 20:\n    print('舒適')\nelse:\n    print('偏冷')",
+                exampleNote: "在 Python 中，「否則如果」合併寫成 elif。",
+                explanation: "elif 用於檢查下一個條件，75 符合 >= 60，因此印出「及格」。"
+            },
+            {
+                id: 10,
+                level: "中階篇",
+                levelColor: "bg-amber-50 text-amber-700 border-amber-200",
+                title: "二選一條件判斷",
+                desc: "如果數字除以 2 餘數為 0 則印出「偶數」，其餘情況則印出「奇數」。請填入正確的關鍵字。",
+                codeBefore: "num = 7\nif num % 2 == 0:\n    print('偶數')\n",
+                codeAfter: ":\n    print('奇數')",
+                answers: ["else"],
+                expectedOutput: "奇數",
+                exampleCode: "is_open = False\nif is_open:\n    print('營業中')\nelse:\n    print('已打烊')",
+                exampleNote: "else 後面不需要寫條件，直接接冒號 : 即可。",
+                explanation: "7 % 2 為 1（不等於 0），因此會執行 else 區塊印出「奇數」。"
+            },
+
+            // ================= 高階篇 (5題) =================
+            {
+                id: 11,
+                level: "高階篇",
+                levelColor: "bg-rose-50 text-rose-700 border-rose-200",
+                title: "產生連續整數序列",
+                desc: "請填入正確的函式名稱，讓迴圈依序產生 0, 1, 2, 3, 4 並逐行印出。",
+                codeBefore: "for i in ",
+                codeAfter: "(5):\n    print(i)",
+                answers: ["range"],
+                expectedOutput: "0\n1\n2\n3\n4",
+                exampleCode: "# 印出 0, 1, 2\nfor n in range(3):\n    print(n)",
+                exampleNote: "range(5) 會產生從 0 開始、共 5 個數字（0 到 4）。",
+                explanation: "range(5) 會產生 0 到 4 的整數序列供 for 迴圈逐一讀取。"
+            },
+            {
+                id: 12,
+                level: "高階篇",
+                levelColor: "bg-rose-50 text-rose-700 border-rose-200",
+                title: "逐一讀取列表元素",
+                desc: "請填入正確的關鍵字，讓迴圈依序取出 subjects 列表中的每一個科目名稱並印出。",
+                codeBefore: "subjects = ['中文', '英文', '數學']\nfor s ",
+                codeAfter: " subjects:\n    print(s)",
+                answers: ["in"],
+                expectedOutput: "中文\n英文\n數學",
+                exampleCode: "pets = ['貓', '狗']\nfor p in pets:\n    print('我喜歡', p)",
+                exampleNote: "in 會將列表元素一個一個指派給前面的變數。",
+                explanation: "for s in subjects: 會依序把列表中的每個字串存入變數 s 並印出。"
+            },
+            {
+                id: 13,
+                level: "高階篇",
+                levelColor: "bg-rose-50 text-rose-700 border-rose-200",
+                title: "條件重複執行迴圈",
+                desc: "請填入正確的迴圈關鍵字，只要 n > 0 條件成立，就重複印出 n 並將其減 1。",
+                codeBefore: "n = 3\n",
+                codeAfter: " n > 0:\n    print(n)\n    n -= 1",
+                answers: ["while"],
+                expectedOutput: "3\n2\n1",
+                exampleCode: "energy = 2\nwhile energy > 0:\n    print('繼續跑步')\n    energy -= 1",
+                exampleNote: "while 迴圈會在每次執行前檢查條件，直到條件變成 False 才停止。",
+                explanation: "while n > 0: 會在 n 為 3, 2, 1 時執行，當 n 變成 0 時結束迴圈。"
+            },
+            {
+                id: 14,
+                level: "高階篇",
+                levelColor: "bg-rose-50 text-rose-700 border-rose-200",
+                title: "提早結束迴圈",
+                desc: "當 i 等於 3 時，我們希望立刻強制結束整個迴圈，使程式只印出 0, 1, 2。請填入正確的關鍵字。",
+                codeBefore: "for i in range(6):\n    if i == 3:\n        ",
+                codeAfter: "\n    print(i)",
+                answers: ["break"],
+                expectedOutput: "0\n1\n2",
+                exampleCode: "for x in range(10):\n    if x == 2:\n        break\n    print(x)  # 只會印出 0 和 1",
+                exampleNote: "break 會立即終止目前的迴圈。",
+                explanation: "當 i == 3 時執行 break，迴圈立刻結束，因此不會印出 3 與之後的數字。"
+            },
+            {
+                id: 15,
+                level: "高階篇",
+                levelColor: "bg-rose-50 text-rose-700 border-rose-200",
+                title: "迴圈邊界條件設定",
+                desc: "請填入正確的比較運算子，使這段迴圈剛好印出 1, 2, 3, 4, 5（包含 5）。",
+                codeBefore: "count = 1\nwhile count ",
+                codeAfter: " 5:\n    print(count)\n    count += 1",
+                answers: ["<="],
+                expectedOutput: "1\n2\n3\n4\n5",
+                exampleCode: "# 印出 1 到 3\ni = 1\nwhile i <= 3:\n    print(i)\n    i += 1",
+                exampleNote: "如果只寫 < 5，印到 4 就會停止；加上等號 <= 才會包含 5。",
+                explanation: "count <= 5 讓迴圈在 count 等於 1 至 5 時皆成立，直到變成 6 才結束。"
+            },
+
+            // ================= 實戰編程篇 (3題：完整撰寫簡短程式) =================
+            {
+                id: 16,
+                type: "code",
+                level: "實戰編程篇",
+                levelColor: "bg-violet-50 text-violet-700 border-violet-200",
+                title: "完整編程：成績及格判斷",
+                desc: "程式已定義 score = 72。請在下方編寫完整的條件判斷程式：如果 score 大於等於 60 就印出 '及格'，否則印出 '不及格'（共 4 行）。",
+                starterCode: "score = 72\n# 請在下方完成條件判斷程式：",
+                codePlaceholder: "請在此輸入你的 Python 程式碼...",
+                expectedOutput: "及格",
+                exampleCode: "age = 20\nif age >= 18:\n    print('成年')\nelse:\n    print('未成年')",
+                exampleNote: "留意冒號 : 與縮排（可按 Tab 鍵自動縮排 4 格）。",
+                explanation: "你成功寫出了完整的 if / else 條件判斷程式！因為 score 為 72 (>= 60)，所以輸出「及格」。",
+                validate: (code) => {
+                    const lines = code.split("\n").filter((l) => l.trim() !== "" && !l.trim().startsWith("#"));
+                    if (lines.length < 4) {
+                        return { ok: false, error: "SyntaxError: 程式碼行數不足，請完整寫出條件判斷與兩個分支的輸出語句（共 4 行）。" };
+                    }
+                    const l1 = lines[0].trim();
+                    const l2 = lines[1];
+                    const l3 = lines[2].trim();
+                    const l4 = lines[3];
+                    const validIf = /^if\s+(\(\s*)?score\s*>=\s*60(\s*\))?\s*:$/.test(l1) || /^if\s+(\(\s*)?60\s*<=\s*score(\s*\))?\s*:$/.test(l1);
+                    if (!validIf) {
+                        return { ok: false, error: "SyntaxError (第 1 行): 第一個條件判斷語法不正確，請檢查條件式與結尾符號。" };
+                    }
+                    if (!/^\s+print\s*\(\s*(['"])及格\1\s*\)\s*$/.test(l2)) {
+                        return { ok: false, error: "IndentationError / SyntaxError (第 2 行): 請檢查縮排與輸出「及格」的語法。" };
+                    }
+                    if (!/^else\s*:$/.test(l3)) {
+                        return { ok: false, error: "SyntaxError (第 3 行): 處理另一種情況的關鍵字或符號有誤。" };
+                    }
+                    if (!/^\s+print\s*\(\s*(['"])不及格\1\s*\)\s*$/.test(l4)) {
+                        return { ok: false, error: "IndentationError / SyntaxError (第 4 行): 請檢查縮排與輸出「不及格」的語法。" };
+                    }
+                    return { ok: true };
+                }
+            },
+            {
+                id: 17,
+                type: "code",
+                level: "實戰編程篇",
+                levelColor: "bg-violet-50 text-violet-700 border-violet-200",
+                title: "完整編程：計算列表總和",
+                desc: "程式已定義 nums = [10, 20, 30] 與 total = 0。請使用迴圈將列表中的數字逐一加進 total，最後印出 total（共 3 行）。",
+                starterCode: "nums = [10, 20, 30]\ntotal = 0\n# 請在下方使用迴圈累加並印出 total：",
+                codePlaceholder: "請在此輸入你的 Python 程式碼...",
+                expectedOutput: "60",
+                exampleCode: "prices = [5, 10, 15]\nsum_val = 0\nfor p in prices:\n    sum_val += p\nprint(sum_val)  # 輸出 30",
+                exampleNote: "注意印出總和的語句必須放在迴圈外面（不縮排），才不會重複印出多次。",
+                explanation: "太棒了！迴圈依序將 10、20、30 加進 total，最後成功印出總和 60。",
+                validate: (code) => {
+                    const lines = code.split("\n").filter((l) => l.trim() !== "" && !l.trim().startsWith("#"));
+                    if (lines.length < 3) {
+                        return { ok: false, error: "SyntaxError: 程式碼行數不足，請寫出迴圈、累加語句與最後的輸出語句（共 3 行）。" };
+                    }
+                    const forMatch = lines[0].trim().match(/^for\s+([a-zA-Z_]\w*)\s+in\s+nums\s*:$/);
+                    if (!forMatch) {
+                        return { ok: false, error: "SyntaxError (第 1 行): 讀取列表元素的迴圈語法不正確，請檢查關鍵字、變數與結尾符號。" };
+                    }
+                    const varName = forMatch[1];
+                    const l2 = lines[1];
+                    const addPattern1 = new RegExp(`^\\s+total\\s*\\+=\\s*${varName}\\s*$`);
+                    const addPattern2 = new RegExp(`^\\s+total\\s*=\\s*total\\s*\\+\\s*${varName}\\s*$`);
+                    const addPattern3 = new RegExp(`^\\s+total\\s*=\\s*${varName}\\s*\\+\\s*total\\s*$`);
+                    if (!addPattern1.test(l2) && !addPattern2.test(l2) && !addPattern3.test(l2)) {
+                        return { ok: false, error: "IndentationError / LogicError (第 2 行): 請檢查縮排以及將數字累加到 total 的寫法。" };
+                    }
+                    const l3 = lines[2];
+                    if (/^\s+/.test(l3)) {
+                        return { ok: false, error: "IndentationError (第 3 行): 輸出總和的語句不應縮排在迴圈內部。" };
+                    }
+                    if (!/^print\s*\(\s*total\s*\)\s*$/.test(l3.trim())) {
+                        return { ok: false, error: "SyntaxError (第 3 行): 最後一行請正確印出變數 total。" };
+                    }
+                    return { ok: true };
+                }
+            },
+            {
+                id: 18,
+                type: "code",
+                level: "實戰編程篇",
+                levelColor: "bg-violet-50 text-violet-700 border-violet-200",
+                title: "完整編程：倒數計時程式",
+                desc: "程式已定義 n = 3。請編寫完整的條件迴圈，當 n 大於 0 時印出 n 並將 n 減 1，依序輸出 3, 2, 1（共 3 行）。",
+                starterCode: "n = 3\n# 請在下方使用迴圈倒數印出 3, 2, 1：",
+                codePlaceholder: "請在此輸入你的 Python 程式碼...",
+                expectedOutput: "3\n2\n1",
+                exampleCode: "k = 2\nwhile k > 0:\n    print(k)\n    k -= 1\n# 輸出 2 和 1",
+                exampleNote: "記得在迴圈內讓變數遞減，否則會變成無窮迴圈！",
+                explanation: "恭喜完成最後一關！你已熟練掌握 Python 的運算子、列表、條件判斷與迴圈編程！",
+                validate: (code) => {
+                    const lines = code.split("\n").filter((l) => l.trim() !== "" && !l.trim().startsWith("#"));
+                    if (lines.length < 3) {
+                        return { ok: false, error: "SyntaxError: 程式碼行數不足，請完整寫出迴圈條件、輸出與遞減語句（共 3 行）。" };
+                    }
+                    const l1 = lines[0].trim();
+                    const validWhile = /^while\s+(\(\s*)?(n\s*>\s*0|n\s*>=\s*1|0\s*<\s*n|1\s*<=\s*n)(\s*\))?\s*:$/.test(l1);
+                    if (!validWhile) {
+                        return { ok: false, error: "SyntaxError (第 1 行): 條件迴圈語法或判斷條件不正確，請再檢查。" };
+                    }
+                    const l2 = lines[1];
+                    const l3 = lines[2];
+                    if (!/^\s+print\s*\(\s*n\s*\)\s*$/.test(l2)) {
+                        return { ok: false, error: "IndentationError / SyntaxError (第 2 行): 請檢查縮排並先印出目前的 n。" };
+                    }
+                    if (!/^\s+(n\s*-=\s*1|n\s*=\s*n\s*-\s*1)\s*$/.test(l3)) {
+                        return { ok: false, error: "IndentationError / LogicError (第 3 行): 請檢查縮排並確保每次執行後將 n 減 1。" };
+                    }
+                    return { ok: true };
+                }
+            }
+        ];
+
+        /**
+         * ==========================================
+         * 2. 應用程式狀態管理
+         * ==========================================
+         */
+        const state = {
+            selectedClass: "",
+            studentId: "",
+            assignmentTitle: "review",
+            currentIndex: 0,
+            isCurrentPassed: false,
+            wrongAttempts: 0,
+            startTime: null,
+            completedTime: null,
+            exampleCountdown: 15,
+            exampleTimer: null,
+            exampleUnlocked: false
+        };
+
+        const CLASSES = ["F5A", "F5B", "F5C", "F5D", "F5E", "F5F"];
+
+        // DOM 元素參照
+        const els = {
+            headerStudentInfo: document.getElementById("header-student-info"),
+            badgeStudent: document.getElementById("badge-student"),
+            badgeProgress: document.getElementById("badge-progress"),
+            progressBarContainer: document.getElementById("progress-bar-container"),
+            progressBarFill: document.getElementById("progress-bar-fill"),
+
+            screenLogin: document.getElementById("screen-login"),
+            classButtons: document.getElementById("class-buttons"),
+            selectStudentId: document.getElementById("select-student-id"),
+            loginError: document.getElementById("login-error"),
+            btnStart: document.getElementById("btn-start"),
+
+            screenQuiz: document.getElementById("screen-quiz"),
+            levelBadge: document.getElementById("level-badge"),
+            questionCounter: document.getElementById("question-counter"),
+            questionTitle: document.getElementById("question-title"),
+            questionDesc: document.getElementById("question-desc"),
+            modeTip: document.getElementById("mode-tip"),
+            editorModeBadge: document.getElementById("editor-mode-badge"),
+            codeContainer: document.getElementById("code-container"),
+            expectedOutput: document.getElementById("expected-output"),
+            consoleOutput: document.getElementById("console-output"),
+            consoleStatus: document.getElementById("console-status"),
+            btnIdeRun: document.getElementById("btn-ide-run"),
+            btnSubmit: document.getElementById("btn-submit"),
+            btnNext: document.getElementById("btn-next"),
+            btnNextText: document.getElementById("btn-next-text"),
+            btnToggleExample: document.getElementById("btn-toggle-example"),
+            exampleBtnText: document.getElementById("example-btn-text"),
+            feedbackSuccess: document.getElementById("feedback-success"),
+            successExplanation: document.getElementById("success-explanation"),
+            feedbackError: document.getElementById("feedback-error"),
+            errorStatusMsg: document.getElementById("error-status-msg"),
+            exampleBox: document.getElementById("example-box"),
+            exampleCode: document.getElementById("example-code"),
+            exampleNote: document.getElementById("example-note"),
+
+            screenComplete: document.getElementById("screen-complete"),
+            certificateCanvas: document.getElementById("certificate-canvas"),
+            btnDownload: document.getElementById("btn-download"),
+            btnRestart: document.getElementById("btn-restart")
+        };
+
+        /**
+         * ==========================================
+         * 3. 登入畫面初始化 (班別 F5A~F5F、學號 1~40)
+         * ==========================================
+         */
+        function initLoginScreen() {
+            // 動態生成班別選擇按鈕
+            els.classButtons.innerHTML = "";
+            CLASSES.forEach((cls) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = cls;
+                btn.dataset.className = cls;
+                btn.className = "py-2.5 px-3 rounded-xl border border-slate-300 bg-white text-slate-700 font-code font-bold text-sm hover:border-indigo-400 hover:bg-indigo-50 transition";
+
+                btn.addEventListener("click", () => {
+                    state.selectedClass = cls;
+                    els.loginError.classList.add("hidden");
+
+                    // 更新選中樣式
+                    Array.from(els.classButtons.children).forEach((b) => {
+                        if (b.dataset.className === cls) {
+                            b.className = "py-2.5 px-3 rounded-xl border border-indigo-600 bg-indigo-600 text-white font-code font-bold text-sm shadow-sm transition";
+                        } else {
+                            b.className = "py-2.5 px-3 rounded-xl border border-slate-300 bg-white text-slate-700 font-code font-bold text-sm hover:border-indigo-400 hover:bg-indigo-50 transition";
+                        }
+                    });
+                });
+
+                els.classButtons.appendChild(btn);
+            });
+
+            // 動態生成學號 1 至 40 選項
+            for (let i = 1; i <= 40; i++) {
+                const opt = document.createElement("option");
+                opt.value = String(i);
+                opt.textContent = `${i} 號`;
+                els.selectStudentId.appendChild(opt);
+            }
+
+            els.selectStudentId.addEventListener("change", (e) => {
+                state.studentId = e.target.value;
+                els.loginError.classList.add("hidden");
+            });
+
+            // 開始闖關按鈕事件
+            els.btnStart.addEventListener("click", () => {
+                if (!state.selectedClass || !state.studentId) {
+                    els.loginError.classList.remove("hidden");
+                    return;
+                }
+
+                state.startTime = new Date();
+                state.currentIndex = 0;
+                state.wrongAttempts = 0;
+
+                // 顯示頂部學生資訊與進度條
+                els.badgeStudent.textContent = `${state.selectedClass} • ${state.studentId} 號`;
+                els.headerStudentInfo.classList.remove("hidden");
+                els.headerStudentInfo.classList.add("flex");
+                els.progressBarContainer.classList.remove("hidden");
+
+                // 切換至答題畫面
+                els.screenLogin.classList.add("hidden");
+                els.screenQuiz.classList.remove("hidden");
+                renderQuestion();
+            });
+        }
+
+        /**
+         * ==========================================
+         * 4. 題目渲染、倒數解鎖例子與答題驗證邏輯
+         * ==========================================
+         */
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+        }
+
+        /**
+         * 單次掃描 Python 語法高亮轉換器（支援註解、字串、關鍵字、內建函式、數字）
+         */
+        function highlightPython(code) {
+            const tokenRegex = /(#[^\n]*|'[^']*'|"[^"]*"|\b(?:and|or|not|if|elif|else|for|in|while|break|continue|True|False|None|def|return)\b|\b(?:print|range|len|int|str|float|list|input)\b|\b\d+\b)/g;
+            let result = "";
+            let lastIndex = 0;
+            let match;
+
+            while ((match = tokenRegex.exec(code)) !== null) {
+                if (match.index > lastIndex) {
+                    result += escapeHtml(code.slice(lastIndex, match.index));
+                }
+                const token = match[0];
+                const safeToken = escapeHtml(token);
+
+                if (token.startsWith("#")) {
+                    result += `<span class="py-cm">${safeToken}</span>`;
+                } else if (token.startsWith("'") || token.startsWith('"')) {
+                    result += `<span class="py-str">${safeToken}</span>`;
+                } else if (/^(?:and|or|not|if|elif|else|for|in|while|break|continue|True|False|None|def|return)$/.test(token)) {
+                    result += `<span class="py-kw">${safeToken}</span>`;
+                } else if (/^(?:print|range|len|int|str|float|list|input)$/.test(token)) {
+                    result += `<span class="py-fn">${safeToken}</span>`;
+                } else if (/^\d+$/.test(token)) {
+                    result += `<span class="py-num">${safeToken}</span>`;
+                } else {
+                    result += safeToken;
+                }
+                lastIndex = tokenRegex.lastIndex;
+            }
+
+            if (lastIndex < code.length) {
+                result += escapeHtml(code.slice(lastIndex));
+            }
+            return result;
+        }
+
+        /**
+         * 清除查看例子倒數計時器
+         */
+        function clearExampleTimer() {
+            if (state.exampleTimer) {
+                clearInterval(state.exampleTimer);
+                state.exampleTimer = null;
+            }
+        }
+
+        /**
+         * 啟動每題 15 秒的「查看例子」解鎖倒數（不影響學生直接作答）
+         */
+        function startExampleCountdown() {
+            clearExampleTimer();
+            state.exampleCountdown = 15;
+            state.exampleUnlocked = false;
+
+            els.btnToggleExample.classList.remove("hidden");
+            els.btnToggleExample.disabled = true;
+            els.btnToggleExample.className = "px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-400 border border-slate-200 font-bold text-sm transition flex items-center gap-1.5 cursor-not-allowed";
+            els.exampleBtnText.textContent = `查看例子 (${state.exampleCountdown}s)`;
+
+            state.exampleTimer = setInterval(() => {
+                state.exampleCountdown--;
+                if (state.exampleCountdown > 0) {
+                    els.exampleBtnText.textContent = `查看例子 (${state.exampleCountdown}s)`;
+                    if (!els.feedbackError.classList.contains("hidden")) {
+                        els.errorStatusMsg.textContent = `請先自行檢查語法與輸出要求，例子將於 ${state.exampleCountdown} 秒後解鎖。`;
+                    }
+                } else {
+                    clearExampleTimer();
+                    state.exampleUnlocked = true;
+                    els.btnToggleExample.disabled = false;
+                    els.btnToggleExample.className = "px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-sm transition flex items-center gap-1.5 cursor-pointer";
+                    els.exampleBtnText.textContent = "查看例子";
+                    if (!els.feedbackError.classList.contains("hidden")) {
+                        els.errorStatusMsg.textContent = "請檢查語法與縮排後再試，現在已可點擊「查看例子」參考。";
+                    }
+                }
+            }, 1000);
+        }
+
+        function renderQuestion() {
+            const q = QUESTIONS[state.currentIndex];
+            state.isCurrentPassed = false;
+            const isCodeMode = q.type === "code";
+
+            // 更新進度條與題號
+            const total = QUESTIONS.length;
+            els.badgeProgress.textContent = `關卡 ${state.currentIndex + 1} / ${total}`;
+            els.progressBarFill.style.width = `${(state.currentIndex / total) * 100}%`;
+
+            // 難度標籤與題目要求文字
+            els.levelBadge.textContent = q.level;
+            els.levelBadge.className = `px-2.5 py-1 rounded-lg text-xs font-bold border ${q.levelColor}`;
+            els.questionCounter.textContent = `第 ${q.id} 題 / 共 ${total} 題`;
+            els.questionTitle.textContent = q.title;
+            els.questionDesc.textContent = q.desc;
+            els.expectedOutput.textContent = q.expectedOutput;
+
+            // 僅說明操作方式，不提供語法提示
+            if (isCodeMode) {
+                els.modeTip.textContent = "作答方式：請在右側編輯區補齊程式碼（支援 Tab 鍵縮排 4 格，Ctrl+Enter 快速執行）。";
+                els.editorModeBadge.textContent = "完整編程模式";
+            } else {
+                els.modeTip.textContent = "作答方式：請在右側程式碼空格中填入正確內容，按 Enter 或點擊 Run 測試。";
+                els.editorModeBadge.textContent = "語法填空模式";
+            }
+
+            // 重置 Console 終端機狀態
+            els.consoleStatus.textContent = "Ready";
+            els.consoleStatus.className = "text-slate-400";
+            els.consoleOutput.className = "text-slate-400 whitespace-pre-wrap leading-relaxed";
+            els.consoleOutput.textContent = "點擊上方 ▶ Run 或左側「測試答案」執行程式...";
+
+            els.codeContainer.innerHTML = "";
+            let focusTarget = null;
+
+            if (isCodeMode) {
+                // ===== 實戰編程模式：上方顯示已寫好的 starterCode + 下方多行程式碼編輯區 =====
+                const starterLines = highlightPython(q.starterCode).split("\n");
+                starterLines.forEach((lineHtml, idx) => {
+                    const row = document.createElement("div");
+                    row.className = "flex items-center px-2 sm:px-3 min-h-[28px] bg-white/[0.02]";
+
+                    const lineNum = document.createElement("span");
+                    lineNum.className = "gdb-gutter-bg w-8 sm:w-10 pr-3 text-right select-none shrink-0 text-xs border-r border-slate-700/70 mr-3";
+                    lineNum.textContent = String(idx + 1);
+
+                    const lineCode = document.createElement("div");
+                    lineCode.className = "whitespace-pre flex-1 text-[#d4d4d4]";
+                    lineCode.innerHTML = lineHtml || "&nbsp;";
+
+                    row.appendChild(lineNum);
+                    row.appendChild(lineCode);
+                    els.codeContainer.appendChild(row);
+                });
+
+                // 學生自由編程區域（左側動態行號 + 右側 textarea）
+                const editorWrap = document.createElement("div");
+                editorWrap.className = "flex items-stretch px-2 sm:px-3 pt-1";
+
+                const gutter = document.createElement("div");
+                gutter.id = "code-gutter";
+                gutter.className = "gdb-gutter-bg w-8 sm:w-10 pr-3 text-right select-none shrink-0 text-xs border-r border-slate-700/70 mr-3 leading-7 pt-1";
+
+                const textarea = document.createElement("textarea");
+                textarea.id = "code-editor-input";
+                textarea.rows = 6;
+                textarea.spellcheck = false;
+                textarea.autocomplete = "off";
+                textarea.autocapitalize = "off";
+                textarea.placeholder = q.codePlaceholder || "請在此輸入你的 Python 程式碼...";
+                textarea.className = "flex-1 bg-[#252526] text-amber-200 font-code text-sm leading-7 px-3 py-1 rounded-lg border border-sky-500/60 focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-sky-400 resize-y min-h-[155px] placeholder:text-slate-500";
+
+                const startLineNum = starterLines.length + 1;
+                const updateGutter = () => {
+                    const lineCount = Math.max(6, textarea.value.split("\n").length);
+                    let numsHtml = "";
+                    for (let i = 0; i < lineCount; i++) {
+                        numsHtml += `<div>${startLineNum + i}</div>`;
+                    }
+                    gutter.innerHTML = numsHtml;
+                };
+                updateGutter();
+
+                textarea.addEventListener("input", updateGutter);
+                // 支援 Tab 鍵縮排 4 格，以及 Ctrl+Enter 快速執行
+                textarea.addEventListener("keydown", (e) => {
+                    if (e.key === "Tab") {
+                        e.preventDefault();
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        textarea.value = textarea.value.substring(0, start) + "    " + textarea.value.substring(end);
+                        textarea.selectionStart = textarea.selectionEnd = start + 4;
+                        updateGutter();
+                    } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                        e.preventDefault();
+                        if (state.isCurrentPassed) {
+                            goToNextQuestion();
+                        } else {
+                            checkAnswer();
+                        }
+                    }
+                });
+
+                editorWrap.appendChild(gutter);
+                editorWrap.appendChild(textarea);
+                els.codeContainer.appendChild(editorWrap);
+                focusTarget = textarea;
+            } else {
+                // ===== 語法填空模式：組合帶行號與語法高亮的 OnlineGDB 風格程式碼 =====
+                const INPUT_MARKER = "___PYTHON_INPUT_SLOT___";
+                const highlightedFull = highlightPython(q.codeBefore) + INPUT_MARKER + highlightPython(q.codeAfter);
+                const lines = highlightedFull.split("\n");
+
+                lines.forEach((lineHtml, idx) => {
+                    const row = document.createElement("div");
+                    row.className = "flex items-center hover:bg-white/[0.03] px-2 sm:px-3 min-h-[28px]";
+
+                    const lineNum = document.createElement("span");
+                    lineNum.className = "gdb-gutter-bg w-8 sm:w-10 pr-3 text-right select-none shrink-0 text-xs border-r border-slate-700/70 mr-3";
+                    lineNum.textContent = String(idx + 1);
+
+                    const lineCode = document.createElement("div");
+                    lineCode.className = "whitespace-pre flex-1 text-[#d4d4d4]";
+
+                    if (lineHtml.includes(INPUT_MARKER)) {
+                        const [partBefore, partAfter] = lineHtml.split(INPUT_MARKER);
+
+                        const beforeSpan = document.createElement("span");
+                        beforeSpan.innerHTML = partBefore;
+
+                        const input = document.createElement("input");
+                        input.type = "text";
+                        input.id = "answer-input";
+                        input.autocomplete = "off";
+                        input.autocapitalize = "off";
+                        input.spellcheck = false;
+                        input.placeholder = "在此作答";
+                        input.className = "inline-block w-24 sm:w-32 h-6 leading-6 px-2 mx-0.5 rounded bg-[#2d2d2d] border border-sky-400 text-amber-300 font-code font-bold text-center text-sm focus:outline-none focus:ring-2 focus:ring-sky-400/60 focus:border-sky-300 transition";
+
+                        input.addEventListener("keydown", (e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (state.isCurrentPassed) {
+                                    goToNextQuestion();
+                                } else {
+                                    checkAnswer();
+                                }
+                            }
+                        });
+                        focusTarget = input;
+
+                        const afterSpan = document.createElement("span");
+                        afterSpan.innerHTML = partAfter;
+
+                        lineCode.appendChild(beforeSpan);
+                        lineCode.appendChild(input);
+                        lineCode.appendChild(afterSpan);
+                    } else {
+                        lineCode.innerHTML = lineHtml || "&nbsp;";
+                    }
+
+                    row.appendChild(lineNum);
+                    row.appendChild(lineCode);
+                    els.codeContainer.appendChild(row);
+                });
+            }
+
+            // 重置回饋與按鈕狀態（範例預設收起，須等倒數結束才能開啟）
+            els.feedbackSuccess.classList.add("hidden");
+            els.feedbackError.classList.add("hidden");
+            els.exampleBox.classList.add("hidden");
+            els.btnNext.classList.add("hidden");
+            els.btnSubmit.classList.remove("hidden");
+
+            // 啟動 15 秒「查看例子」解鎖倒數
+            startExampleCountdown();
+
+            // 預載參考例子內容（套用 Python 語法高亮，但維持隱藏直到解鎖後點擊）
+            els.exampleCode.innerHTML = highlightPython(q.exampleCode);
+            els.exampleNote.textContent = q.exampleNote;
+
+            // 自動聚焦輸入框
+            if (focusTarget) {
+                setTimeout(() => focusTarget.focus(), 50);
+            }
+        }
+
+        function checkAnswer() {
+            const q = QUESTIONS[state.currentIndex];
+            if (state.isCurrentPassed) return;
+
+            const isCodeMode = q.type === "code";
+            const inputEl = isCodeMode
+                ? document.getElementById("code-editor-input")
+                : document.getElementById("answer-input");
+            if (!inputEl) return;
+
+            let isCorrect = false;
+            let errorDetail = "";
+
+            if (isCodeMode) {
+                const res = q.validate(inputEl.value);
+                isCorrect = res.ok;
+                errorDetail = res.error || "程式碼語法或邏輯有誤，請再檢查一次。";
+            } else {
+                const userAnswer = inputEl.value.trim();
+                isCorrect = q.answers.includes(userAnswer);
+                const shownInput = userAnswer === "" ? "(空白)" : userAnswer;
+                errorDetail = `Traceback (most recent call last):\n  File "main.py", error near "${shownInput}"\nSyntaxError / OutputMismatch: 執行結果與目標預期輸出不符。`;
+            }
+
+            if (isCorrect) {
+                state.isCurrentPassed = true;
+                clearExampleTimer();
+                inputEl.disabled = true;
+                if (isCodeMode) {
+                    inputEl.className = "flex-1 bg-emerald-950/50 text-emerald-300 font-code text-sm leading-7 px-3 py-1 rounded-lg border border-emerald-400 resize-none min-h-[155px]";
+                } else {
+                    inputEl.className = "inline-block w-24 sm:w-32 h-6 leading-6 px-2 mx-0.5 rounded bg-emerald-950/80 border border-emerald-400 text-emerald-300 font-code font-bold text-center text-sm";
+                }
+
+                // 更新 OnlineGDB 終端機為成功輸出
+                els.consoleStatus.textContent = "Exit code 0";
+                els.consoleStatus.className = "text-emerald-400 font-semibold";
+                els.consoleOutput.className = "text-slate-100 whitespace-pre-wrap leading-relaxed";
+                els.consoleOutput.textContent = `${q.expectedOutput}\n\n...Program finished with exit code 0`;
+
+                els.feedbackError.classList.add("hidden");
+                els.exampleBox.classList.add("hidden");
+                els.btnToggleExample.classList.add("hidden");
+                els.btnSubmit.classList.add("hidden");
+
+                els.successExplanation.textContent = q.explanation;
+                els.feedbackSuccess.classList.remove("hidden");
+
+                if (state.currentIndex === QUESTIONS.length - 1) {
+                    els.btnNextText.textContent = "完成作業並生成完成圖 🎉";
+                } else {
+                    els.btnNextText.textContent = "進入下一關";
+                }
+                els.btnNext.classList.remove("hidden");
+                els.btnNext.focus();
+            } else {
+                state.wrongAttempts++;
+                // 震動與錯誤樣式
+                inputEl.classList.remove("animate-shake", "border-sky-400", "border-sky-500/60");
+                void inputEl.offsetWidth;
+                inputEl.classList.add("animate-shake", "border-rose-500", "bg-rose-950/50");
+
+                // 更新 OnlineGDB 終端機為錯誤輸出
+                els.consoleStatus.textContent = "Execution Error";
+                els.consoleStatus.className = "text-rose-400 font-semibold";
+                els.consoleOutput.className = "text-rose-400 whitespace-pre-wrap leading-relaxed";
+                els.consoleOutput.textContent = errorDetail;
+
+                // 顯示錯誤回饋（依倒數狀態提醒是否已可查看例子）
+                els.errorStatusMsg.textContent = state.exampleUnlocked
+                    ? "請檢查語法與縮排後再試，現在已可點擊「查看例子」參考。"
+                    : `請先自行檢查語法與輸出要求，例子將於 ${state.exampleCountdown} 秒後解鎖。`;
+                els.feedbackError.classList.remove("hidden");
+                inputEl.focus();
+            }
+        }
+
+        function goToNextQuestion() {
+            if (!state.isCurrentPassed) return;
+
+            if (state.currentIndex < QUESTIONS.length - 1) {
+                state.currentIndex++;
+                renderQuestion();
+            } else {
+                // 全部 18 題完成
+                clearExampleTimer();
+                state.completedTime = new Date();
+                els.progressBarFill.style.width = "100%";
+                els.badgeProgress.textContent = `已完成 ${QUESTIONS.length} / ${QUESTIONS.length}`;
+                els.screenQuiz.classList.add("hidden");
+                els.screenComplete.classList.remove("hidden");
+                generateCertificate();
+            }
+        }
+
+        // 綁定答題按鈕事件
+        els.btnSubmit.addEventListener("click", checkAnswer);
+        els.btnIdeRun.addEventListener("click", checkAnswer);
+        els.btnNext.addEventListener("click", goToNextQuestion);
+
+        // 切換顯示/隱藏參考例子（須等待 15 秒解鎖）
+        els.btnToggleExample.addEventListener("click", () => {
+            if (!state.exampleUnlocked) return;
+            const isHidden = els.exampleBox.classList.contains("hidden");
+            if (isHidden) {
+                els.exampleBox.classList.remove("hidden");
+                els.exampleBtnText.textContent = "隱藏例子";
+            } else {
+                els.exampleBox.classList.add("hidden");
+                els.exampleBtnText.textContent = "查看例子";
+            }
+        });
+
+        /**
+         * ==========================================
+         * 5. 繪製作業完成圖 (HTML5 Canvas) 與下載
+         * ==========================================
+         */
+        function formatDateTime(date) {
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        }
+
+        function generateCertificate() {
+            const canvas = els.certificateCanvas;
+            const ctx = canvas.getContext("2d");
+
+            const W = 1000;
+            const H = 640;
+            canvas.width = W;
+            canvas.height = H;
+
+            // 1. 背景漸層
+            const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+            bgGrad.addColorStop(0, "#f8fafc");
+            bgGrad.addColorStop(1, "#eef2ff");
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // 2. 外框裝飾
+            ctx.strokeStyle = "#4f46e5";
+            ctx.lineWidth = 10;
+            ctx.strokeRect(20, 20, W - 40, H - 40);
+
+            ctx.strokeStyle = "#c7d2fe";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(34, 34, W - 68, H - 68);
+
+            // 3. 頂部橫幅
+            ctx.fillStyle = "#4f46e5";
+            ctx.fillRect(34, 34, W - 68, 110);
+
+            // 頂部標題文字
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "center";
+            ctx.font = "900 36px 'Noto Sans TC', sans-serif";
+            ctx.fillText("Python 溫習作業完成證明", W / 2, 92);
+
+            ctx.fillStyle = "#e0e7ff";
+            ctx.font = "600 18px 'JetBrains Mono', 'Noto Sans TC', sans-serif";
+            ctx.fillText(`作業題目：${state.assignmentTitle}`, W / 2, 126);
+
+            // 4. 學生資訊卡片區
+            ctx.fillStyle = "#ffffff";
+            ctx.shadowColor = "rgba(15, 23, 42, 0.08)";
+            ctx.shadowBlur = 16;
+            ctx.shadowOffsetY = 6;
+            roundRect(ctx, 80, 178, W - 160, 120, 16);
+            ctx.fill();
+            ctx.shadowColor = "transparent";
+
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.lineWidth = 1.5;
+            roundRect(ctx, 80, 178, W - 160, 120, 16);
+            ctx.stroke();
+
+            const colYLabel = 218;
+            const colYVal = 266;
+
+            ctx.textAlign = "center";
+            // 左欄：班別
+            ctx.fillStyle = "#64748b";
+            ctx.font = "500 18px 'Noto Sans TC', sans-serif";
+            ctx.fillText("班別", 230, colYLabel);
+            ctx.fillStyle = "#1e293b";
+            ctx.font = "900 34px 'JetBrains Mono', sans-serif";
+            ctx.fillText(state.selectedClass, 230, colYVal);
+
+            // 中欄：學號
+            ctx.fillStyle = "#64748b";
+            ctx.font = "500 18px 'Noto Sans TC', sans-serif";
+            ctx.fillText("學號", W / 2, colYLabel);
+            ctx.fillStyle = "#1e293b";
+            ctx.font = "900 34px 'JetBrains Mono', sans-serif";
+            ctx.fillText(`${state.studentId} 號`, W / 2, colYVal);
+
+            // 右欄：通關進度
+            ctx.fillStyle = "#64748b";
+            ctx.font = "500 18px 'Noto Sans TC', sans-serif";
+            ctx.fillText("完成狀態", W - 230, colYLabel);
+            ctx.fillStyle = "#059669";
+            ctx.font = "900 30px 'Noto Sans TC', sans-serif";
+            ctx.fillText(`${QUESTIONS.length} / ${QUESTIONS.length} 通關`, W - 230, colYVal);
+
+            // 5. 四大溫習模組完成徽章
+            const modules = [
+                { title: "基礎篇 (5/5)", sub: "and/or/not, ** // % /", color: "#059669", bg: "#ecfdf5" },
+                { title: "中階篇 (5/5)", sub: "列表 List 與 if 判斷", color: "#d97706", bg: "#fffbeb" },
+                { title: "高階篇 (5/5)", sub: "for 與 while 迴圈", color: "#e11d48", bg: "#fff1f2" },
+                { title: "實戰篇 (3/3)", sub: "完整 Python 編程", color: "#7c3aed", bg: "#f5f3ff" }
+            ];
+
+            const cardW = 200;
+            const cardGap = 16;
+            const startX = (W - (cardW * 4 + cardGap * 3)) / 2;
+
+            modules.forEach((m, idx) => {
+                const x = startX + idx * (cardW + cardGap);
+                const y = 335;
+
+                ctx.fillStyle = m.bg;
+                roundRect(ctx, x, y, cardW, 115, 14);
+                ctx.fill();
+
+                ctx.strokeStyle = m.color;
+                ctx.lineWidth = 2;
+                roundRect(ctx, x, y, cardW, 115, 14);
+                ctx.stroke();
+
+                ctx.fillStyle = m.color;
+                ctx.font = "700 20px 'Noto Sans TC', sans-serif";
+                ctx.fillText(`✓ ${m.title}`, x + cardW / 2, y + 48);
+
+                ctx.fillStyle = "#475569";
+                ctx.font = "500 14px 'Noto Sans TC', sans-serif";
+                ctx.fillText(m.sub, x + cardW / 2, y + 84);
+            });
+
+            // 6. 底部時間戳記與防偽驗證碼
+            const timeStr = formatDateTime(state.completedTime || new Date());
+            const verifyCode = `REV-${state.selectedClass}-${String(state.studentId).padStart(2, "0")}-${(state.completedTime.getTime() % 100000).toString().padStart(5, "0")}`;
+
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(80, 495);
+            ctx.lineTo(W - 80, 495);
+            ctx.stroke();
+
+            ctx.textAlign = "left";
+            ctx.fillStyle = "#475569";
+            ctx.font = "500 17px 'Noto Sans TC', sans-serif";
+            ctx.fillText(`完成時間：${timeStr}`, 85, 535);
+            ctx.fillText(`作答錯誤重試次數：${state.wrongAttempts} 次`, 85, 568);
+
+            ctx.textAlign = "right";
+            ctx.fillStyle = "#4f46e5";
+            ctx.font = "700 18px 'JetBrains Mono', sans-serif";
+            ctx.fillText(`驗證編號：${verifyCode}`, W - 85, 535);
+            ctx.fillStyle = "#64748b";
+            ctx.font = "500 15px 'Noto Sans TC', sans-serif";
+            ctx.fillText("Python 溫習闖關系統自動核發", W - 85, 568);
+        }
+
+        // 輔助函式：繪製圓角矩形
+        function roundRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
+        // 下載作業完成圖 (PNG)
+        els.btnDownload.addEventListener("click", () => {
+            try {
+                const dataUrl = els.certificateCanvas.toDataURL("image/png");
+                const link = document.createElement("a");
+                const paddedId = String(state.studentId).padStart(2, "0");
+                link.download = `${state.selectedClass}${paddedId}review.png`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (err) {
+                console.error("圖片下載失敗：", err);
+            }
+        });
+
+        // 重新溫習
+        els.btnRestart.addEventListener("click", () => {
+            state.currentIndex = 0;
+            state.wrongAttempts = 0;
+            state.startTime = new Date();
+            els.screenComplete.classList.add("hidden");
+            els.screenQuiz.classList.remove("hidden");
+            renderQuestion();
+        });
+
+        // 啟動初始化
+        window.addEventListener("DOMContentLoaded", initLoginScreen);
+    </script>
+</body>
+</html>
