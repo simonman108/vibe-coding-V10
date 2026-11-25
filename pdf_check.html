@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 批改與評分系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <style>
+        /* 自訂捲軸樣式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .pdf-canvas-container {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- 頂部導航欄 -->
+    <header class="bg-slate-900 text-white px-6 py-3 flex justify-between items-center shrink-0 shadow-md">
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-file-signature text-indigo-400 text-2xl"></i>
+            <h1 class="font-bold text-lg tracking-wide">PDF 批改與評分管理系統</h1>
+            <span id="file-stats-badge" class="bg-slate-800 text-indigo-300 text-xs px-2.5 py-1 rounded-full border border-slate-700 hidden">
+                已載入: <span id="stat-total">0</span> | 已評分: <span id="stat-graded">0</span>
+            </span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <!-- 班別選擇器 -->
+            <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5">
+                <i class="fa-solid fa-users text-indigo-400 text-xs mr-2"></i>
+                <select id="active-class-select" class="bg-transparent text-slate-200 text-xs font-medium focus:outline-none cursor-pointer">
+                    <option value="" class="bg-slate-800 text-white">全部班別 (自動偵測)</option>
+                    <option value="F1B" class="bg-slate-800 text-white">F1B 班 (36人)</option>
+                    <option value="F1E" class="bg-slate-800 text-white">F1E 班 (36人)</option>
+                </select>
+            </div>
+            <button id="btn-roster-modal" class="bg-indigo-600/80 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-1.5" title="檢視班別名單與批改進度">
+                <i class="fa-solid fa-list-check"></i>
+                <span class="hidden md:inline">名單總覽</span>
+            </button>
+            <button id="btn-fullscreen" class="bg-slate-700 hover:bg-indigo-600 text-slate-200 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-1.5" title="切換全螢幕">
+                <i id="icon-fullscreen" class="fa-solid fa-expand"></i>
+                <span id="text-fullscreen" class="hidden sm:inline">全螢幕</span>
+            </button>
+            <button id="btn-export-csv" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2 shadow disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <i class="fa-solid fa-file-excel"></i>
+                <span id="text-export-csv">下載成績單 (CSV)</span>
+            </button>
+            <button id="btn-clear-all" class="bg-slate-700 hover:bg-rose-600 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm transition" title="清空所有檔案">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主內容區塊 -->
+    <div class="flex flex-1 overflow-hidden">
+
+        <!-- 左側：檔案清單 -->
+        <aside class="w-80 bg-white border-r border-slate-200 flex flex-col shrink-0">
+            <!-- 匯入按鈕與篩選 -->
+            <div class="p-4 border-b border-slate-200 bg-slate-50 space-y-3">
+                <label class="flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/50 hover:bg-indigo-50 p-4 rounded-xl cursor-pointer transition text-center group">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-indigo-500 mb-1 group-hover:scale-110 transition-transform"></i>
+                    <span class="text-xs font-semibold text-indigo-700">選擇或拖曳 40+ 個 PDF 檔案</span>
+                    <span class="text-[10px] text-slate-500 mt-0.5">支援多檔批次匯入</span>
+                    <input type="file" id="file-input" multiple accept="application/pdf" class="hidden">
+                </label>
+
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                    <input type="text" id="search-input" placeholder="搜尋檔名..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                </div>
+
+                <div class="flex items-center justify-between text-xs text-slate-500 pt-1">
+                    <span>排序：</span>
+                    <select id="sort-select" class="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer">
+                        <option value="name">檔名 (A-Z)</option>
+                        <option value="studentNo">班號 (1-36)</option>
+                        <option value="status">批改狀態</option>
+                        <option value="score">分數 (高至低)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 檔案列表 -->
+            <div id="file-list" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+                <!-- 空狀態提示 -->
+                <div id="empty-state" class="p-8 text-center text-slate-400">
+                    <i class="fa-regular fa-folder-open text-4xl mb-3 text-slate-300"></i>
+                    <p class="text-sm">尚未載入任何 PDF 檔</p>
+                    <p class="text-xs mt-1 text-slate-400">點擊上方按鈕匯入作業或報告</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 中間：PDF 閱覽區 -->
+        <main class="flex-1 bg-slate-200 flex flex-col overflow-hidden relative">
+            <!-- PDF 工具列 -->
+            <div id="pdf-toolbar" class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0 shadow-sm hidden">
+                <div class="flex items-center space-x-2">
+                    <button id="btn-prev-page" class="p-1.5 rounded hover:bg-slate-100 text-slate-600 disabled:opacity-30">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span class="text-xs text-slate-600">
+                        頁次：<span id="page-num" class="font-semibold text-slate-800">0</span> / <span id="page-count">0</span>
+                    </span>
+                    <button id="btn-next-page" class="p-1.5 rounded hover:bg-slate-100 text-slate-600 disabled:opacity-30">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <button id="btn-zoom-out" class="p-1.5 rounded hover:bg-slate-100 text-slate-600" title="縮小">
+                        <i class="fa-solid fa-magnifying-glass-minus"></i>
+                    </button>
+                    <span id="zoom-level" class="text-xs font-semibold text-slate-700 w-12 text-center">100%</span>
+                    <button id="btn-zoom-in" class="p-1.5 rounded hover:bg-slate-100 text-slate-600" title="放大">
+                        <i class="fa-solid fa-magnifying-glass-plus"></i>
+                    </button>
+                    <button id="btn-rotate" class="p-1.5 rounded hover:bg-slate-100 text-slate-600 border-l border-slate-200 pl-3" title="旋轉 90 度">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- PDF 渲染畫布容器 -->
+            <div id="pdf-viewer-container" class="flex-1 overflow-auto p-6 flex justify-center items-start">
+                <div id="pdf-placeholder" class="m-auto text-center text-slate-400">
+                    <i class="fa-solid fa-file-pdf text-6xl text-slate-300 mb-3"></i>
+                    <p class="text-base font-medium">請從左側列表選擇一個 PDF 檔案以進行檢視與評分</p>
+                </div>
+                <div id="canvas-wrapper" class="hidden relative">
+                    <canvas id="pdf-render-canvas" class="pdf-canvas-container rounded bg-white"></canvas>
+                </div>
+            </div>
+        </main>
+
+        <!-- 右側：評分與紀錄控制台 -->
+        <aside id="grading-panel" class="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 shadow-lg">
+            <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-indigo-600"></i> 評分與評語
+                </h2>
+                <span id="current-file-name" class="text-xs text-slate-500 truncate max-w-[120px]" title="尚未選擇檔案">尚未選擇</span>
+            </div>
+
+            <div id="grading-form" class="p-5 flex-1 overflow-y-auto space-y-5 opacity-50 pointer-events-none">
+                <!-- 學生班別與姓名配對 -->
+                <div class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 space-y-2.5">
+                    <label class="block text-xs font-semibold text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-graduate"></i> 學生資料配對
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <select id="input-class" class="col-span-1 text-xs font-semibold text-slate-700 bg-white p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <option value="">未指定</option>
+                            <option value="F1B">F1B</option>
+                            <option value="F1E">F1E</option>
+                        </select>
+                        <select id="input-student" class="col-span-2 text-xs font-medium text-slate-700 bg-white p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" disabled>
+                            <option value="">請先選擇班別</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 數字分數 -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">得分 (滿分 100)</label>
+                    <div class="flex items-center space-x-2">
+                        <input type="number" id="input-score" min="0" max="100" placeholder="0 - 100" class="w-full text-2xl font-bold text-slate-800 p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <button id="btn-quick-100" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold px-3 py-3 rounded-xl border border-indigo-200 whitespace-nowrap transition">
+                            100 分
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 評級等級 (A/B/C/D/F) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">等第等級</label>
+                    <div class="grid grid-cols-5 gap-1.5" id="grade-buttons">
+                        <button type="button" data-grade="A" class="grade-btn border border-slate-200 py-1.5 text-sm font-bold rounded-lg text-slate-600 hover:bg-slate-100">A</button>
+                        <button type="button" data-grade="B" class="grade-btn border border-slate-200 py-1.5 text-sm font-bold rounded-lg text-slate-600 hover:bg-slate-100">B</button>
+                        <button type="button" data-grade="C" class="grade-btn border border-slate-200 py-1.5 text-sm font-bold rounded-lg text-slate-600 hover:bg-slate-100">C</button>
+                        <button type="button" data-grade="D" class="grade-btn border border-slate-200 py-1.5 text-sm font-bold rounded-lg text-slate-600 hover:bg-slate-100">D</button>
+                        <button type="button" data-grade="F" class="grade-btn border border-slate-200 py-1.5 text-sm font-bold rounded-lg text-slate-600 hover:bg-slate-100">F</button>
+                    </div>
+                </div>
+
+                <!-- 快速常用評語標籤 -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">快速標籤</label>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" class="tag-btn text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200 transition">+ 結構完整</button>
+                        <button type="button" class="tag-btn text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200 transition">+ 論述清晰</button>
+                        <button type="button" class="tag-btn text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200 transition">+ 格式不符</button>
+                        <button type="button" class="tag-btn text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200 transition">+ 內容過簡</button>
+                        <button type="button" class="tag-btn text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200 transition">+ 準時交件</button>
+                    </div>
+                </div>
+
+                <!-- 詳細評語備註 -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">評語與建議</label>
+                    <textarea id="input-feedback" rows="4" placeholder="請輸入對此份作業的評語..." class="w-full text-sm p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none"></textarea>
+                </div>
+
+                <!-- 保存狀態提示 -->
+                <div class="pt-2">
+                    <button id="btn-save-grade" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-check"></i>
+                        <span>儲存評分並切換下一份</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 班別名單總覽彈出視窗 -->
+    <div id="roster-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+            <!-- 視窗標題 -->
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-clipboard-user text-indigo-400 text-xl"></i>
+                    <h3 class="font-bold text-base">班別名單與批改進度總覽</h3>
+                </div>
+                <button id="btn-close-roster" class="text-slate-400 hover:text-white transition p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 班別分頁與操作 -->
+            <div class="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3 shrink-0">
+                <div class="flex space-x-2">
+                    <button type="button" data-roster-tab="F1B" class="roster-tab-btn px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 text-white transition">F1B (36人)</button>
+                    <button type="button" data-roster-tab="F1E" class="roster-tab-btn px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-slate-600 border border-slate-300 hover:bg-slate-100 transition">F1E (36人)</button>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span id="roster-summary-text" class="text-xs text-slate-600 font-medium">已配對: 0 / 36 | 已評分: 0 / 36</span>
+                    <button id="btn-export-roster-csv" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 shadow-sm">
+                        <i class="fa-solid fa-download"></i>
+                        <span>匯出此班成績單 (CSV)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 名單表格 -->
+            <div class="flex-1 overflow-y-auto p-4">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-600 border-b border-slate-200">
+                            <th class="py-2.5 px-3 font-semibold w-16">班號</th>
+                            <th class="py-2.5 px-3 font-semibold w-28">學生姓名</th>
+                            <th class="py-2.5 px-3 font-semibold">對應 PDF 檔案</th>
+                            <th class="py-2.5 px-3 font-semibold w-20 text-center">分數</th>
+                            <th class="py-2.5 px-3 font-semibold w-16 text-center">等第</th>
+                            <th class="py-2.5 px-3 font-semibold w-24 text-center">狀態 / 操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="roster-table-body" class="divide-y divide-slate-100">
+                        <!-- 動態生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 邏輯 -->
+    <script>
+        // 內建班別學生名單 (F1B, F1E)
+        const CLASS_ROSTERS = {
+            F1B: [
+                { no: 1, name: '王佳忝' }, { no: 2, name: '王奕辰' }, { no: 3, name: '王梓澄' }, { no: 4, name: '布政延' },
+                { no: 5, name: '吳雪瑩' }, { no: 6, name: '李俊希' }, { no: 7, name: '李想' }, { no: 8, name: '杜沚螢' },
+                { no: 9, name: '周峻霆' }, { no: 10, name: '幸子正' }, { no: 11, name: '林志揚' }, { no: 12, name: '馬梓焜' },
+                { no: 13, name: '高梓澄' }, { no: 14, name: '梁兆鴻' }, { no: 15, name: '梁美妍' }, { no: 16, name: '梁瀚文' },
+                { no: 17, name: '畢祟彥' }, { no: 18, name: '郭彥翎' }, { no: 19, name: '陳信宇' }, { no: 20, name: '陳駿驥' },
+                { no: 21, name: '曾子賢' }, { no: 22, name: '楊芯瑜' }, { no: 23, name: '劉曦愉' }, { no: 24, name: '歐陽明晞' },
+                { no: 25, name: '蔡瑞欣' }, { no: 26, name: '鄭奕軒' }, { no: 27, name: '鄭晞妤' }, { no: 28, name: '黎俊熙' },
+                { no: 29, name: '蕭俊彥' }, { no: 30, name: '戴愷妍' }, { no: 31, name: '繆裕茗' }, { no: 32, name: '謝曉晴' },
+                { no: 33, name: '顏芷悅' }, { no: 34, name: '關琸茵' }, { no: 35, name: '蘇梓軒' }, { no: 36, name: '龔思澄' }
+            ],
+            F1E: [
+                { no: 1, name: '王靖楠' }, { no: 2, name: '古智輝' }, { no: 3, name: '伍尚鋒' }, { no: 4, name: '朱芷晴' },
+                { no: 5, name: '朱朗慈' }, { no: 6, name: '何宇誠' }, { no: 7, name: '何梓珊' }, { no: 8, name: '余梓銘' },
+                { no: 9, name: '吳芷妍' }, { no: 10, name: '吳若萌' }, { no: 11, name: '吳梓朗' }, { no: 12, name: '李佳俊' },
+                { no: 13, name: '李卓諾' }, { no: 14, name: '冼鍒' }, { no: 15, name: '周曉駿' }, { no: 16, name: '林維俊' },
+                { no: 17, name: '邱宇浩' }, { no: 18, name: '洪家駿' }, { no: 19, name: '飛奕妤' }, { no: 20, name: '容子禮' },
+                { no: 21, name: '張貝兒' }, { no: 22, name: '張浩然' }, { no: 23, name: '梁栩芸' }, { no: 24, name: '莫梓俊' },
+                { no: 25, name: '陳信潼' }, { no: 26, name: '陳郁晴' }, { no: 27, name: '陳語桐' }, { no: 28, name: '黃勇程' },
+                { no: 29, name: '楊承謙' }, { no: 30, name: '楊芷悠' }, { no: 31, name: '蔡永昭' }, { no: 32, name: '蔡芷桐' },
+                { no: 33, name: '蔡皓天' }, { no: 34, name: '鄭司睿' }, { no: 35, name: '盧莛睿' }, { no: 36, name: '羅景昇' }
+            ]
+        };
+
+        // State Management
+        let filesData = []; // Array of { id, file, name, size, className, studentNo, studentName, score, grade, feedback, graded: bool }
+        let currentFileId = null;
+        let currentRosterTab = 'F1B';
+        const gradingForm = document.getElementById('grading-form');
+        const currentFileName = document.getElementById('current-file-name');
+        const activeClassSelect = document.getElementById('active-class-select');
+        const inputClass = document.getElementById('input-class');
+        const inputStudent = document.getElementById('input-student');
+        const inputScore = document.getElementById('input-score');
+        const inputFeedback = document.getElementById('input-feedback');
+        const gradeButtons = document.querySelectorAll('.grade-btn');
+        const btnExportCsv = document.getElementById('btn-export-csv');
+        const textExportCsv = document.getElementById('text-export-csv');
+        const fileStatsBadge = document.getElementById('file-stats-badge');
+
+        // 名單總覽 Modal 元素
+        const rosterModal = document.getElementById('roster-modal');
+        const btnRosterModal = document.getElementById('btn-roster-modal');
+        const btnCloseRoster = document.getElementById('btn-close-roster');
+        const rosterTableBody = document.getElementById('roster-table-body');
+        const rosterSummaryText = document.getElementById('roster-summary-text');
+        const btnExportRosterCsv = document.getElementById('btn-export-roster-csv');
+
+        let selectedGrade = '';
+
+        // 依檔名自動偵測並配對班別與學生
+        function autoMatchStudent(fileName, preferredClass = '') {
+            const upperName = fileName.toUpperCase();
+            const classesToCheck = preferredClass
+                ? [preferredClass, ...Object.keys(CLASS_ROSTERS).filter(c => c !== preferredClass)]
+                : Object.keys(CLASS_ROSTERS);
+
+            // 1. 優先比對學生姓名（最準確）
+            for (const cls of classesToCheck) {
+                for (const student of CLASS_ROSTERS[cls]) {
+                    if (fileName.includes(student.name)) {
+                        return { className: cls, studentNo: student.no, studentName: student.name };
+                    }
+                }
+            }
+
+            // 2. 比對「班別 + 班號」（例如 F1B_01, F1B-1, 1B01, F1E 12）
+            for (const cls of classesToCheck) {
+                const shortCls = cls.replace(/^F/i, ''); // 例如 F1B -> 1B
+                const regex = new RegExp(`(?:${cls}|${shortCls})[\\s_\\-]*0?([1-9]|[1-2][0-9]|3[0-6])(?:\\D|$)`, 'i');
+                const match = upperName.match(regex);
+                if (match) {
+                    const no = parseInt(match[1], 10);
+                    const student = CLASS_ROSTERS[cls].find(s => s.no === no);
+                    if (student) {
+                        return { className: cls, studentNo: student.no, studentName: student.name };
+                    }
+                }
+            }
+
+            // 3. 若已選定特定班別，嘗試比對檔名開頭的班號（例如 01_作業.pdf、12.pdf）
+            if (preferredClass && CLASS_ROSTERS[preferredClass]) {
+                const startNumMatch = fileName.match(/^0?([1-9]|[1-2][0-9]|3[0-6])(?:\D|$)/);
+                if (startNumMatch) {
+                    const no = parseInt(startNumMatch[1], 10);
+                    const student = CLASS_ROSTERS[preferredClass].find(s => s.no === no);
+                    if (student) {
+                        return { className: preferredClass, studentNo: student.no, studentName: student.name };
+                    }
+                }
+            }
+
+            return { className: preferredClass || '', studentNo: '', studentName: '' };
+        }
+
+        // 更新右側表單中的學生下拉選單
+        function populateStudentSelect(cls, selectedNo = '') {
+            inputStudent.innerHTML = '';
+            if (!cls || !CLASS_ROSTERS[cls]) {
+                inputStudent.disabled = true;
+                inputStudent.innerHTML = '<option value="">請先選擇班別</option>';
+                return;
+            }
+
+            inputStudent.disabled = false;
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = '-- 請選擇學生 --';
+            inputStudent.appendChild(defaultOpt);
+
+            CLASS_ROSTERS[cls].forEach(student => {
+                const opt = document.createElement('option');
+                opt.value = student.no;
+                const paddedNo = String(student.no).padStart(2, '0');
+                opt.textContent = `${paddedNo} ${student.name}`;
+                if (String(student.no) === String(selectedNo)) {
+                    opt.selected = true;
+                }
+                inputStudent.appendChild(opt);
+            });
+        }
+
+        // File Selection Event Listener
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            const preferredClass = activeClassSelect.value;
+
+            files.forEach(file => {
+                if (file.type === 'application/pdf') {
+                    // Check if file already added
+                    const exists = filesData.some(f => f.name === file.name && f.size === file.size);
+                    if (!exists) {
+                        const matched = autoMatchStudent(file.name, preferredClass);
+                        filesData.push({
+                            id: 'pdf_' + Math.random().toString(36).substr(2, 9),
+                            file: file,
+                            name: file.name,
+                            size: file.size,
+                            className: matched.className,
+                            studentNo: matched.studentNo,
+                            studentName: matched.studentName,
+                            score: '',
+                            grade: '',
+                            feedback: '',
+                            graded: false
+                        });
+                    }
+                }
+            });
+
+            updateFileList();
+            updateStats();
+
+            // If no file currently selected, select the first one
+            if (!currentFileId && filesData.length > 0) {
+                selectFile(filesData[0].id);
+            }
+        }
+
+        // Render File List Sidebar
+        function updateFileList() {
+            const activeClass = activeClassSelect.value;
+            // 若已選擇特定班別，即使未載入檔案也允許下載空白班別名單或已批改名單
+            btnExportCsv.disabled = (filesData.length === 0 && !activeClass);
+            textExportCsv.innerText = activeClass ? `下載 ${activeClass} 成績單 (CSV)` : '下載成績單 (CSV)';
+
+            if (filesData.length === 0) {
+                emptyState.classList.remove('hidden');
+                fileStatsBadge.classList.add('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            fileStatsBadge.classList.remove('hidden');
+
+            // Filter (依搜尋關鍵字：檔名、班別、學生姓名、班號)
+            const searchKeyword = searchInput.value.toLowerCase();
+            let filteredFiles = filesData.filter(f => {
+                const matchKeyword =
+                    f.name.toLowerCase().includes(searchKeyword) ||
+                    (f.studentName && f.studentName.toLowerCase().includes(searchKeyword)) ||
+                    (f.className && f.className.toLowerCase().includes(searchKeyword)) ||
+                    (f.studentNo && String(f.studentNo).includes(searchKeyword));
+
+                // 若頂部選定了特定班別，只顯示該班與尚未指定班別的檔案
+                const matchClass = !activeClass || f.className === activeClass || !f.className;
+                return matchKeyword && matchClass;
+            });
+
+            // Sort
+            const sortBy = sortSelect.value;
+            filteredFiles.sort((a, b) => {
+                if (sortBy === 'name') return a.name.localeCompare(b.name);
+                if (sortBy === 'studentNo') {
+                    const clsCompare = (a.className || 'ZZZ').localeCompare(b.className || 'ZZZ');
+                    if (clsCompare !== 0) return clsCompare;
+                    return (Number(a.studentNo) || 999) - (Number(b.studentNo) || 999);
+                }
+                if (sortBy === 'status') return (b.graded ? 1 : 0) - (a.graded ? 1 : 0);
+                if (sortBy === 'score') return (Number(b.score) || 0) - (Number(a.score) || 0);
+                return 0;
+            });
+
+            fileListContainer.innerHTML = '';
+            filteredFiles.forEach(fileObj => {
+                const item = document.createElement('div');
+                item.className = `p-3.5 cursor-pointer border-b border-slate-100 hover:bg-slate-50 transition flex items-center justify-between ${fileObj.id === currentFileId ? 'bg-indigo-50/70 border-l-4 border-l-indigo-600' : ''}`;
+                
+                const isGraded = fileObj.graded;
+                const badgeColor = isGraded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500';
+                const scoreText = isGraded ? (fileObj.score !== '' ? `${fileObj.score}分` : (fileObj.grade || '已閱')) : '未評分';
+
+                // 學生標籤顯示
+                const studentLabel = fileObj.studentName
+                    ? `<span class="inline-flex items-center text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded mr-1">${fileObj.className} ${String(fileObj.studentNo).padStart(2, '0')} ${fileObj.studentName}</span>`
+                    : (fileObj.className
+                        ? `<span class="inline-flex items-center text-[10px] font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded mr-1">${fileObj.className} 未指定姓名</span>`
+                        : `<span class="inline-flex items-center text-[10px] text-slate-400 mr-1">未配對學生</span>`);
+
+                item.innerHTML = `
+                    <div class="overflow-hidden mr-2">
+                        <div class="text-xs font-semibold text-slate-800 truncate" title="${fileObj.name}">${fileObj.name}</div>
+                        <div class="flex items-center mt-1">
+                            ${studentLabel}
+                            <span class="text-[10px] text-slate-400">${(fileObj.size / 1024 / 1024).toFixed(2)} MB</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${badgeColor}">
+                        ${scoreText}
+                    </span>
+                `;
+
+                item.addEventListener('click', () => selectFile(fileObj.id));
+                fileListContainer.appendChild(item);
+            });
+        }
+
+        // Select File and Load PDF
+        function selectFile(id) {
+            currentFileId = id;
+            const fileObj = filesData.find(f => f.id === id);
+            if (!fileObj) return;
+
+            updateFileList();
+            currentFileName.innerText = fileObj.name;
+            currentFileName.title = fileObj.name;
+            gradingForm.classList.remove('opacity-50', 'pointer-events-none');
+
+            // Populate Form (包含班別與學生資料)
+            inputClass.value = fileObj.className || '';
+            populateStudentSelect(fileObj.className, fileObj.studentNo);
+            inputScore.value = fileObj.score;
+            inputFeedback.value = fileObj.feedback;
+            selectedGrade = fileObj.grade;
+            updateGradeButtonsUI();
+
+            // Load PDF to Viewer
+            const fileReader = new FileReader();
+            fileReader.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                    pdfDoc = pdf;
+                    pageCountSpan.innerText = pdf.numPages;
+                    pageNum = 1;
+                    scale = 1.0;
+                    rotation = 0;
+                    
+                    pdfPlaceholder.classList.add('hidden');
+                    canvasWrapper.classList.remove('hidden');
+                    pdfToolbar.classList.remove('hidden');
+
+                    renderPage(pageNum);
+                });
+            };
+            fileReader.readAsArrayBuffer(fileObj.file);
+        }
+
+        // Render PDF Page
+        function renderPage(num) {
+            if (!pdfDoc) return;
+
+            pdfDoc.getPage(num).then(function(page) {
+                const viewport = page.getViewport({ scale: scale, rotation: rotation });
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+
+                page.render(renderContext);
+                pageNumSpan.innerText = num;
+                zoomLevelSpan.innerText = Math.round(scale * 100) + '%';
+            });
+        }
+
+        // PDF Controls Events
+        document.getElementById('btn-prev-page').addEventListener('click', () => {
+            if (pageNum <= 1) return;
+            pageNum--;
+            renderPage(pageNum);
+        });
+
+        document.getElementById('btn-next-page').addEventListener('click', () => {
+            if (!pdfDoc || pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            renderPage(pageNum);
+        });
+
+        document.getElementById('btn-zoom-in').addEventListener('click', () => {
+            scale += 0.2;
+            renderPage(pageNum);
+        });
+
+        document.getElementById('btn-zoom-out').addEventListener('click', () => {
+            if (scale <= 0.4) return;
+            scale -= 0.2;
+            renderPage(pageNum);
+        });
+
+        document.getElementById('btn-rotate').addEventListener('click', () => {
+            rotation = (rotation + 90) % 360;
+            renderPage(pageNum);
+        });
+
+        // Grade Buttons Selection
+        gradeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedGrade = btn.dataset.grade;
+                updateGradeButtonsUI();
+            });
+        });
+
+        function updateGradeButtonsUI() {
+            gradeButtons.forEach(btn => {
+                if (btn.dataset.grade === selectedGrade) {
+                    btn.className = 'grade-btn border-2 border-indigo-600 bg-indigo-50 py-1.5 text-sm font-bold rounded-lg text-indigo-700 shadow-sm';
+                } else {
+                    btn.className = 'grade-btn border border-slate-200 py-1.5 text-sm font-bold rounded-lg text-slate-600 hover:bg-slate-100';
+                }
+            });
+        }
+
+        // Quick Tag Buttons
+        document.querySelectorAll('.tag-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tagText = btn.innerText.replace('+ ', '');
+                if (inputFeedback.value) {
+                    inputFeedback.value += `、${tagText}`;
+                } else {
+                    inputFeedback.value = tagText;
+                }
+            });
+        });
+
+        // Quick 100 Score
+        document.getElementById('btn-quick-100').addEventListener('click', () => {
+            inputScore.value = 100;
+            selectedGrade = 'A';
+            updateGradeButtonsUI();
+        });
+
+        // 切換右側表單的班別與學生時，即時更新該檔案的配對資料
+        inputClass.addEventListener('change', () => {
+            const cls = inputClass.value;
+            populateStudentSelect(cls, '');
+            if (!currentFileId) return;
+            const fileObj = filesData.find(f => f.id === currentFileId);
+            if (fileObj) {
+                fileObj.className = cls;
+                fileObj.studentNo = '';
+                fileObj.studentName = '';
+                updateFileList();
+            }
+        });
+
+        inputStudent.addEventListener('change', () => {
+            if (!currentFileId) return;
+            const fileObj = filesData.find(f => f.id === currentFileId);
+            const cls = inputClass.value;
+            const no = inputStudent.value ? parseInt(inputStudent.value, 10) : '';
+            if (fileObj) {
+                fileObj.className = cls;
+                fileObj.studentNo = no;
+                const student = (cls && CLASS_ROSTERS[cls]) ? CLASS_ROSTERS[cls].find(s => s.no === no) : null;
+                fileObj.studentName = student ? student.name : '';
+                updateFileList();
+            }
+        });
+
+        // 頂部班別選擇器變更時，自動嘗試為未配對檔案重新配對並更新介面
+        activeClassSelect.addEventListener('change', () => {
+            const selectedCls = activeClassSelect.value;
+            if (selectedCls) {
+                currentRosterTab = selectedCls;
+                filesData.forEach(fileObj => {
+                    if (!fileObj.studentName) {
+                        const matched = autoMatchStudent(fileObj.name, selectedCls);
+                        if (matched.studentName) {
+                            fileObj.className = matched.className;
+                            fileObj.studentNo = matched.studentNo;
+                            fileObj.studentName = matched.studentName;
+                        }
+                    }
+                });
+                // 若目前有選中檔案，同步刷新右側下拉選單
+                if (currentFileId) {
+                    const currentObj = filesData.find(f => f.id === currentFileId);
+                    if (currentObj) {
+                        inputClass.value = currentObj.className || '';
+                        populateStudentSelect(currentObj.className, currentObj.studentNo);
+                    }
+                }
+            }
+            updateFileList();
+        });
+
+        // Save Grade & Move to Next
+        document.getElementById('btn-save-grade').addEventListener('click', () => {
+            if (!currentFileId) return;
+
+            const fileObj = filesData.find(f => f.id === currentFileId);
+            if (fileObj) {
+                const cls = inputClass.value;
+                const no = inputStudent.value ? parseInt(inputStudent.value, 10) : '';
+                const student = (cls && CLASS_ROSTERS[cls]) ? CLASS_ROSTERS[cls].find(s => s.no === no) : null;
+
+                fileObj.className = cls;
+                fileObj.studentNo = no;
+                fileObj.studentName = student ? student.name : '';
+                fileObj.score = inputScore.value;
+                fileObj.grade = selectedGrade;
+                fileObj.feedback = inputFeedback.value;
+                fileObj.graded = true;
+
+                updateFileList();
+                updateStats();
+
+                // Auto switch to next ungraded file if available
+                const nextFile = filesData.find(f => !f.graded);
+                if (nextFile) {
+                    selectFile(nextFile.id);
+                }
+            }
+        });
+        // 匯出指定班別（依班號 1-36 排序）或全部檔案的 CSV 成績單
+        function exportClassOrAllCsv(targetClass = '') {
+            let csvContent = "\uFEFF"; // UTF-8 BOM for Chinese character support in Excel
+            csvContent += "班別,班號,學生姓名,檔案名稱,評分狀態,分數 (0-100),等第,評語與建議\n";
+
+            if (targetClass && CLASS_ROSTERS[targetClass]) {
+                // 依班別名單 1-36 號順序匯出
+                CLASS_ROSTERS[targetClass].forEach(student => {
+                    const matchedFile = filesData.find(f => f.className === targetClass && Number(f.studentNo) === student.no);
+                    const cleanName = matchedFile ? `"${matchedFile.name.replace(/"/g, '""')}"` : '"未配對檔案"';
+                    const status = matchedFile ? (matchedFile.graded ? "已評分" : "已配對未評分") : "未交/未配對";
+                    const score = matchedFile && matchedFile.score !== "" ? matchedFile.score : "";
+                    const grade = matchedFile ? (matchedFile.grade || "") : "";
+                    const feedback = matchedFile ? `"${(matchedFile.feedback || '').replace(/"/g, '""')}"` : '""';
+
+                    csvContent += `${targetClass},${student.no},"${student.name}",${cleanName},${status},${score},${grade},${feedback}\n`;
+                });
+            } else {
+                // 匯出全部已載入檔案
+                if (filesData.length === 0) return;
+                filesData.forEach(item => {
+                    const cls = item.className || "未指定";
+                    const no = item.studentNo || "";
+                    const studentName = `"${(item.studentName || '未配對').replace(/"/g, '""')}"`;
+                    const cleanName = `"${item.name.replace(/"/g, '""')}"`;
+                    const status = item.graded ? "已評分" : "未評分";
+                    const score = item.score !== "" ? item.score : "";
+                    const grade = item.grade || "";
+                    const feedback = `"${(item.feedback || '').replace(/"/g, '""')}"`;
+
+                    csvContent += `${cls},${no},${studentName},${cleanName},${status},${score},${grade},${feedback}\n`;
+                });
+            }
+
+            const fileNamePrefix = targetClass ? `${targetClass}_PDF評分成績單` : 'PDF評分紀錄表';
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `${fileNamePrefix}_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // Export CSV Functionality
+        btnExportCsv.addEventListener('click', () => {
+            exportClassOrAllCsv(activeClassSelect.value);
+        });
+
+        // 渲染班別名單總覽表格
+        function renderRosterModal(cls) {
+            currentRosterTab = cls;
+            document.querySelectorAll('.roster-tab-btn').forEach(btn => {
+                if (btn.dataset.rosterTab === cls) {
+                    btn.className = 'roster-tab-btn px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 text-white transition';
+                } else {
+                    btn.className = 'roster-tab-btn px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-slate-600 border border-slate-300 hover:bg-slate-100 transition';
+                }
+            });
+
+            const roster = CLASS_ROSTERS[cls] || [];
+            let matchedCount = 0;
+            let gradedCount = 0;
+            rosterTableBody.innerHTML = '';
+
+            roster.forEach(student => {
+                const matchedFile = filesData.find(f => f.className === cls && Number(f.studentNo) === student.no);
+                if (matchedFile) matchedCount++;
+                if (matchedFile && matchedFile.graded) gradedCount++;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+
+                const statusHtml = matchedFile
+                    ? `<button type="button" data-jump-id="${matchedFile.id}" class="jump-file-btn px-2.5 py-1 rounded-md text-[11px] font-semibold ${matchedFile.graded ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'} transition">
+                        ${matchedFile.graded ? '已評分 (檢視)' : '前往批改'}
+                       </button>`
+                    : `<span class="text-slate-400 text-[11px]">尚未配對</span>`;
+
+                tr.innerHTML = `
+                    <td class="py-2 px-3 font-mono font-bold text-slate-600">${String(student.no).padStart(2, '0')}</td>
+                    <td class="py-2 px-3 font-semibold text-slate-800">${student.name}</td>
+                    <td class="py-2 px-3 text-slate-500 truncate max-w-[220px]" title="${matchedFile ? matchedFile.name : ''}">
+                        ${matchedFile ? `<i class="fa-regular fa-file-pdf text-rose-500 mr-1"></i>${matchedFile.name}` : '<span class="text-slate-300">-</span>'}
+                    </td>
+                    <td class="py-2 px-3 text-center font-bold ${matchedFile && matchedFile.score !== '' ? 'text-slate-800' : 'text-slate-300'}">
+                        ${matchedFile && matchedFile.score !== '' ? matchedFile.score : '-'}
+                    </td>
+                    <td class="py-2 px-3 text-center font-bold text-indigo-600">
+                        ${matchedFile && matchedFile.grade ? matchedFile.grade : '-'}
+                    </td>
+                    <td class="py-2 px-3 text-center">${statusHtml}</td>
+                `;
+                rosterTableBody.appendChild(tr);
+            });
+
+            rosterSummaryText.innerText = `已配對: ${matchedCount} / ${roster.length} | 已評分: ${gradedCount} / ${roster.length}`;
+
+            // 綁定跳轉按鈕事件
+            rosterTableBody.querySelectorAll('.jump-file-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetId = btn.dataset.jumpId;
+                    rosterModal.classList.add('hidden');
+                    selectFile(targetId);
+                });
+            });
+        }
+
+        // 名單總覽視窗事件監聽
+        btnRosterModal.addEventListener('click', () => {
+            const initialTab = activeClassSelect.value || currentRosterTab || 'F1B';
+            renderRosterModal(initialTab);
+            rosterModal.classList.remove('hidden');
+        });
+
+        btnCloseRoster.addEventListener('click', () => {
+            rosterModal.classList.add('hidden');
+        });
+
+        rosterModal.addEventListener('click', (e) => {
+            if (e.target === rosterModal) {
+                rosterModal.classList.add('hidden');
+            }
+        });
+
+        document.querySelectorAll('.roster-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => renderRosterModal(btn.dataset.rosterTab));
+        });
+
+        btnExportRosterCsv.addEventListener('click', () => {
+            exportClassOrAllCsv(currentRosterTab);
+        });
+
+        // Drag and Drop Handling
+        const dropArea = document.body;
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFileSelect({ target: { files: files } });
+        });
+
+        // 瀏覽器全螢幕切換功能
+        const btnFullscreen = document.getElementById('btn-fullscreen');
+        const iconFullscreen = document.getElementById('icon-fullscreen');
+        const textFullscreen = document.getElementById('text-fullscreen');
+
+        // 依據目前是否處於全螢幕狀態更新按鈕圖示與文字
+        function updateFullscreenUI() {
+            const isFullscreen = Boolean(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.msFullscreenElement
+            );
+
+            if (isFullscreen) {
+                iconFullscreen.classList.remove('fa-expand');
+                iconFullscreen.classList.add('fa-compress');
+                textFullscreen.innerText = '退出全螢幕';
+                btnFullscreen.title = '退出全螢幕';
+            } else {
+                iconFullscreen.classList.remove('fa-compress');
+                iconFullscreen.classList.add('fa-expand');
+                textFullscreen.innerText = '全螢幕';
+                btnFullscreen.title = '切換全螢幕';
+            }
+        }
+
+        // 點擊按鈕切換全螢幕模式
+        btnFullscreen.addEventListener('click', async () => {
+            try {
+                const isFullscreen = Boolean(
+                    document.fullscreenElement ||
+                    document.webkitFullscreenElement ||
+                    document.msFullscreenElement
+                );
+
+                if (!isFullscreen) {
+                    const docEl = document.documentElement;
+                    if (docEl.requestFullscreen) {
+                        await docEl.requestFullscreen();
+                    } else if (docEl.webkitRequestFullscreen) {
+                        await docEl.webkitRequestFullscreen();
+                    } else if (docEl.msRequestFullscreen) {
+                        await docEl.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        await document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        await document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        await document.msExitFullscreen();
+                    }
+                }
+            } catch (err) {
+                console.error('切換全螢幕失敗:', err);
+            }
+        });
+
+        // 監聽全螢幕狀態變化（支援按 ESC 鍵退出時同步更新介面）
+        document.addEventListener('fullscreenchange', updateFullscreenUI);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
+        document.addEventListener('MSFullscreenChange', updateFullscreenUI);
+    </script>
+</body>
+</html>
